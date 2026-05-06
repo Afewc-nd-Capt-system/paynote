@@ -1,0 +1,131 @@
+[
+  {
+    "id": "1777931415953",
+    "user": "aaumar2001@gmail.com",
+    "customer": "Capt. Dawud",
+    "phone": "07056027133",
+    "item": "iPhone 17 pro max.",
+    "amount": 2150500,
+    "status": "paid",
+    "date": "2026-05-04T21:50:15.953Z"
+  },
+  {
+    "id": "1777931454921",
+    "user": "aaumar2001@gmail.com",
+    "customer": "Capt. Dawud",
+    "phone": "+2347056027133",
+    "item": "iPhone 17 pro max.",
+    "amount": 2150500,
+    "status": "unpaid",
+    "date": "2026-05-04T21:50:54.921Z"
+  },
+  {
+    "id": "1777931690739",
+    "user": "aaumar2001@gmail.com",
+    "customer": "fdtu7v",
+    "phone": "uhyb",
+    "item": "ig g",
+    "amount": 876789,
+    "status": "paid",
+    "date": "2026-05-04T21:54:50.740Z"
+  },
+  {
+    "id": "1777971735919",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "trury",
+    "phone": "+234 808 389 7900",
+    "item": "zobo",
+    "amount": 200,
+    "status": "paid",
+    "date": "2026-05-05T09:02:15.919Z"
+  },
+  {
+    "id": "1777971985239",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Speedou",
+    "phone": "+2349046775827",
+    "item": "1x iphone 17 pro max.",
+    "amount": 2170500,
+    "status": "paid",
+    "date": "2026-05-05T09:06:25.239Z"
+  },
+  {
+    "id": "1777973335767",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "afec",
+    "phone": "+234 808 389 7900",
+    "item": "zobo",
+    "amount": 500,
+    "status": "paid",
+    "date": "2026-05-05T09:28:55.767Z"
+  },
+  {
+    "id": "1778009998033",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Afec",
+    "phone": "+234 808 389 7900",
+    "item": "zobo",
+    "amount": 500,
+    "status": "unpaid",
+    "date": "2026-05-05T19:39:58.052Z"
+  },
+  {
+    "id": "1778010023186",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Afec",
+    "phone": "+234 808 389 7900",
+    "item": "zobo",
+    "amount": 500000,
+    "status": "unpaid",
+    "date": "2026-05-05T19:40:23.186Z"
+  },
+  {
+    "id": "1778012025267",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Afec",
+    "phone": "+234 808 389 7900",
+    "item": "zobo",
+    "amount": 250000,
+    "status": "paid",
+    "date": "2026-05-05T20:13:45.267Z"
+  },
+  {
+    "id": "1778045953351",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Capt. Dawud",
+    "phone": "+2347056027133",
+    "item": "iPhone 17 pro max.",
+    "amount": 2200000,
+    "status": "paid",
+    "date": "2026-05-06T05:39:13.351Z"
+  },
+  {
+    "id": "1778051092782",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Capt. Dawud",
+    "phone": "+2348083897900",
+    "item": "iPhone 17 pro max.",
+    "amount": 231649,
+    "status": "paid",
+    "date": "2026-05-06T07:04:52.981Z"
+  },
+  {
+    "id": "1778051149944",
+    "userId": "1777953424766",
+    "userEmail": "ceoafec@gmail.com",
+    "customer": "Capt. Dawud",
+    "phone": "+2348083897900",
+    "item": "iPhone 17 pro max.",
+    "amount": 2135645,
+    "status": "unpaid",
+    "date": "2026-05-06T07:05:49.961Z"
+  }
+]
