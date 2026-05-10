@@ -36,8 +36,8 @@ if (missingEnvVars.length > 0) {
 app.use(helmet());
 app.use(cors({
   origin: [
-    "http://10.162.26.235:5173",
-    "https://paynote-azure.vercel.app"
+    process.env.CLIENT_URL,
+    "http://10.162.26.235:5173"
   ],
   credentials: true
 }))
