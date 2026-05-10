@@ -35,10 +35,7 @@ if (missingEnvVars.length > 0) {
 // Security Middleware
 app.use(helmet());
 app.use(cors({
-  origin: [
-    process.env.CLIENT_URL,
-    "http://10.162.26.235:5173"
-  ],
+  origin: process.env.CLIENT_URL,
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }));
