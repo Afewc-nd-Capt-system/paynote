@@ -1,6 +1,6 @@
 // Replace with your local IP address
 // Example: const API = "http://192.168.1.100:5000"
-const API = "http://10.162.26.235:5000"
+const API = import.meta.env.VITE_API_URL
 
 // ============ Auth Functions ============
 
