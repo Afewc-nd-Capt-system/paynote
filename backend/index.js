@@ -35,9 +35,12 @@ if (missingEnvVars.length > 0) {
 // Security Middleware
 app.use(helmet());
 app.use(cors({
-  origin: parseCorsOrigin(process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:3000,http://10.162.26.235:5173'),
+  origin: [
+    "http://10.162.26.235:5173",
+    "https://paynote-azure.vercel.app"
+  ],
   credentials: true
-}));
+}))
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb' }));
 
