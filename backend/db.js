@@ -303,11 +303,13 @@ async function getUserCount() {
 
 async function testConnection() {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('users')
-      .select('COUNT(*)', { count: 'exact', head: true });
+      .select('id')
+      .limit(1);
 
     if (error) throw error;
+
     console.log('✅ Supabase connection successful!');
     return true;
   } catch (error) {
@@ -315,7 +317,6 @@ async function testConnection() {
     return false;
   }
 }
-
 module.exports = {
   supabase,
   // User operations
