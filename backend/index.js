@@ -10,6 +10,7 @@ const db = require('./db');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ============ Environment Variable Validation ============
 const NODE_ENV = process.env.NODE_ENV || 'development';
