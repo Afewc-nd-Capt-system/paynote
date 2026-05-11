@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Initialize Supabase client
 const SUPABASE_URL = process.env.SUPABASE_URL;
+console.log("SUPABASE_URL LOADED:", JSON.stringify(SUPABASE_URL));
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
