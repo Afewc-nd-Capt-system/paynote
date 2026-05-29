@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
@@ -48,8 +47,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || def
 const MAX_ACCOUNTS_PER_IP = 3
 const BILLING_TRIAL_DAYS = 30
 const MONTHLY_CHARGE_NAIRA = 3000
-const PAYSTACK_API_BASE_URL = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co'
-const PAYSTACK_CALLBACK_URL = process.env.PAYSTACK_CALLBACK_URL || process.env.CLIENT_URL || null
+const PAYSTACK_PAYMENT_LINK_URL = 'https://paystack.shop/pay/n0bt6i18lq'
 
 // Security Middleware
 app.use(helmet({
@@ -137,19 +135,6 @@ if (!ADMIN_USER_EMAIL || !ADMIN_PASSWORD) {
   process.exit(1);
 }
 
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || null;
-const PAYSTACK_WEBHOOK_SECRET = process.env.PAYSTACK_WEBHOOK_SECRET || null;
-
-if (!PAYSTACK_SECRET_KEY && !isDevelopment) {
-  console.error('❌ CRITICAL: PAYSTACK_SECRET_KEY must be set via environment variable in production');
-  process.exit(1);
-}
-
-if (!PAYSTACK_WEBHOOK_SECRET && !isDevelopment) {
-  console.error('❌ CRITICAL: PAYSTACK_WEBHOOK_SECRET must be set via environment variable in production');
-  process.exit(1);
-}
-
 // ============ Helper Functions ============
 
 function sanitizeString(value) {
@@ -216,45 +201,6 @@ async function logActivity(action, details) {
     console.error('Failed to log activity:', error.message);
     // Don't throw - logging errors shouldn't break the app
   }
-}
-
-async function initializePaystackTransaction(user, metadata = {}) {
-  if (!PAYSTACK_SECRET_KEY) {
-    throw new Error('Paystack secret key is not configured');
-  }
-
-  const amountInKobo = Math.round((Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA) * 100));
-  const payload = {
-    email: user.email,
-    amount: amountInKobo,
-    currency: 'NGN',
-    metadata: {
-      userId: user.id,
-      userEmail: user.email,
-      ...metadata
-    }
-  };
-
-  if (PAYSTACK_CALLBACK_URL) {
-    payload.callback_url = PAYSTACK_CALLBACK_URL;
-  }
-
-  const response = await fetch(`${PAYSTACK_API_BASE_URL}/transaction/initialize`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.status) {
-    throw new Error(result.message || 'Failed to initialize Paystack transaction');
-  }
-
-  return result.data;
 }
 
 // ============ Authentication Middleware ============
@@ -453,11 +399,6 @@ app.post('/billing/checkout', verifyToken, async (req, res) => {
       });
     }
 
-    const paymentData = await initializePaystackTransaction(user, {
-      reason: 'Monthly subscription renewal',
-      cycle: 'renewal'
-    });
-
     await db.updateUserBillingState(user.id, {
       billing_status: 'pending_payment',
       billing_plan: 'monthly_subscription',
@@ -469,14 +410,14 @@ app.post('/billing/checkout', verifyToken, async (req, res) => {
     await logActivity('billing_checkout_initialized', {
       userId: user.id,
       email: user.email,
-      reference: paymentData.reference,
-      authorizationUrl: paymentData.authorization_url
+      paymentLink: PAYSTACK_PAYMENT_LINK_URL,
+      mode: 'external_link'
     });
 
     res.json({
       status: 'pending_payment',
-      reference: paymentData.reference,
-      authorizationUrl: paymentData.authorization_url,
+      authorizationUrl: PAYSTACK_PAYMENT_LINK_URL,
+      paymentLink: PAYSTACK_PAYMENT_LINK_URL,
       amount: Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA),
       currency: 'NGN',
       provider: 'paystack'
@@ -489,25 +430,6 @@ app.post('/billing/checkout', verifyToken, async (req, res) => {
 
 app.post('/webhooks/paystack', async (req, res) => {
   try {
-    const signature = req.get('x-paystack-signature');
-
-    if (!PAYSTACK_WEBHOOK_SECRET) {
-      return res.status(500).json({ error: 'Paystack webhook secret is not configured' });
-    }
-
-    if (!signature) {
-      return res.status(400).json({ error: 'Missing Paystack signature' });
-    }
-
-    const computedSignature = crypto
-      .createHmac('sha512', PAYSTACK_WEBHOOK_SECRET)
-      .update(req.rawBody || Buffer.from(JSON.stringify(req.body)))
-      .digest('hex');
-
-    if (computedSignature !== signature) {
-      return res.status(400).json({ error: 'Invalid Paystack signature' });
-    }
-
     const event = req.body;
     const eventType = event.event;
     const paymentData = event.data || {};
