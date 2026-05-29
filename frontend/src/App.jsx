@@ -11,6 +11,7 @@ import Settings from './pages/Settings'
 import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
 import { logout as logoutUser, verifyToken, verifyAdminSession, adminLogout } from './api'
+import { persistSession, restoreSession as restoreStoredSession, clearSession } from './authSession'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -26,15 +27,29 @@ function App() {
     let isMounted = true
 
     const restoreSession = async () => {
+      const storedUserSession = restoreStoredSession('user')
+      if (storedUserSession?.user && isMounted) {
+        setUser(storedUserSession.user)
+      }
+
+      const storedAdminSession = restoreStoredSession('admin')
+      if (storedAdminSession?.user && isMounted) {
+        setAdminUser(storedAdminSession.user)
+      }
+
       try {
         const userResponse = await verifyToken()
         if (isMounted && userResponse?.user) {
           setUser(userResponse.user)
         } else if (isMounted) {
           setUser(null)
+          clearSession('user')
         }
       } catch (error) {
-        if (isMounted) setUser(null)
+        if (isMounted) {
+          setUser(null)
+          clearSession('user')
+        }
       }
 
       try {
@@ -45,11 +60,13 @@ function App() {
         } else if (isMounted) {
           setAdminUser(null)
           setAdminToken(null)
+          clearSession('admin')
         }
       } catch (error) {
         if (isMounted) {
           setAdminUser(null)
           setAdminToken(null)
+          clearSession('admin')
         }
       } finally {
         if (isMounted) setLoading(false)
@@ -86,13 +103,23 @@ function App() {
     }
   }, [])
 
-  const handleLogin = (userData) => {
+  const handleLogin = (loginResponse) => {
+    const userData = loginResponse?.user || loginResponse
     setUser(userData)
+
+    if (loginResponse?.token) {
+      persistSession('user', userData, loginResponse.token)
+    }
   }
 
-  const handleAdminLogin = (adminData) => {
-    setAdminUser(adminData.user || adminData)
+  const handleAdminLogin = (adminResponse) => {
+    const adminData = adminResponse?.user || adminResponse
+    setAdminUser(adminData)
     setAdminToken(null)
+
+    if (adminResponse?.token) {
+      persistSession('admin', adminData, adminResponse.token)
+    }
   }
 
   const handleLogout = async () => {
@@ -102,6 +129,7 @@ function App() {
       // Ignore logout errors so the client clears local UI state
     }
 
+    clearSession('user')
     setUser(null)
     setSidebarOpen(false)
   }
@@ -113,6 +141,7 @@ function App() {
       // Ignore logout errors so the client clears local UI state
     }
 
+    clearSession('admin')
     setAdminUser(null)
     setAdminToken(null)
   }

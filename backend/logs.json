@@ -230,5 +230,29 @@
       "email": "ceoafec@gmail.com",
       "userId": "1777953424766"
     }
+  },
+  {
+    "id": "1780051720602",
+    "timestamp": "2026-05-29T10:48:40.668Z",
+    "action": "failed_login",
+    "details": {
+      "email": "ceoafec@gmail.com"
+    }
+  },
+  {
+    "id": "1780052012012",
+    "timestamp": "2026-05-29T10:53:32.232Z",
+    "action": "failed_login",
+    "details": {
+      "email": "ceoafec@gmail.com"
+    }
+  },
+  {
+    "id": "1780053908734",
+    "timestamp": "2026-05-29T11:25:08.758Z",
+    "action": "failed_login",
+    "details": {
+      "email": "ceoafec@gmail.com"
+    }
   }
 ]

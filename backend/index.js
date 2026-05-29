@@ -34,13 +34,22 @@ if (missingEnvVars.length > 0) {
   }
 }
 
-const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || '')
+const defaultFrontendOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://paynote-olive.vercel.app'
+];
+
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || defaultFrontendOrigins.join(','))
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean)
 
-const CSRF_COOKIE_NAME = 'paynote_csrf_token'
-const CSRF_HEADER_NAME = 'x-csrf-token'
+const MAX_ACCOUNTS_PER_IP = 3
+const BILLING_TRIAL_DAYS = 30
+const MONTHLY_CHARGE_NAIRA = 3000
+const PAYSTACK_API_BASE_URL = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co'
+const PAYSTACK_CALLBACK_URL = process.env.PAYSTACK_CALLBACK_URL || process.env.CLIENT_URL || null
 
 // Security Middleware
 app.use(helmet({
@@ -73,7 +82,12 @@ app.use(cors({
   },
   credentials: true
 }))
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf
+  }
+}));
 app.use(express.urlencoded({ limit: '10mb' }));
 app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
@@ -123,6 +137,19 @@ if (!ADMIN_USER_EMAIL || !ADMIN_PASSWORD) {
   process.exit(1);
 }
 
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || null;
+const PAYSTACK_WEBHOOK_SECRET = process.env.PAYSTACK_WEBHOOK_SECRET || null;
+
+if (!PAYSTACK_SECRET_KEY && !isDevelopment) {
+  console.error('❌ CRITICAL: PAYSTACK_SECRET_KEY must be set via environment variable in production');
+  process.exit(1);
+}
+
+if (!PAYSTACK_WEBHOOK_SECRET && !isDevelopment) {
+  console.error('❌ CRITICAL: PAYSTACK_WEBHOOK_SECRET must be set via environment variable in production');
+  process.exit(1);
+}
+
 // ============ Helper Functions ============
 
 function sanitizeString(value) {
@@ -163,6 +190,25 @@ function validatePasswordStrength(password) {
   return null;
 }
 
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    return Array.isArray(realIp) ? realIp[0].trim() : String(realIp).trim();
+  }
+
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function normalizeIp(ip) {
+  const cleanIp = String(ip || 'unknown').trim();
+  return cleanIp.replace(/^::ffff:/i, '');
+}
+
 async function logActivity(action, details) {
   try {
     await db.logActivity(Date.now().toString(), action, sanitizeDetails(details));
@@ -172,67 +218,52 @@ async function logActivity(action, details) {
   }
 }
 
-function generateCsrfToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-function setCsrfCookie(res, token) {
-  const secure = !isDevelopment;
-  const cookie = `${CSRF_COOKIE_NAME}=${token}; Path=/; HttpOnly; Max-Age=86400; SameSite=Lax${secure ? '; Secure' : ''}`;
-  res.setHeader('Set-Cookie', cookie);
-}
-
-function verifyCsrfToken(req, res, next) {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-    return next();
+async function initializePaystackTransaction(user, metadata = {}) {
+  if (!PAYSTACK_SECRET_KEY) {
+    throw new Error('Paystack secret key is not configured');
   }
 
-  if (req.path === '/auth/csrf') {
-    return next();
+  const amountInKobo = Math.round((Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA) * 100));
+  const payload = {
+    email: user.email,
+    amount: amountInKobo,
+    currency: 'NGN',
+    metadata: {
+      userId: user.id,
+      userEmail: user.email,
+      ...metadata
+    }
+  };
+
+  if (PAYSTACK_CALLBACK_URL) {
+    payload.callback_url = PAYSTACK_CALLBACK_URL;
   }
 
-  const cookieToken = getCookieValue(req, CSRF_COOKIE_NAME);
-  const headerToken = req.get(CSRF_HEADER_NAME);
+  const response = await fetch(`${PAYSTACK_API_BASE_URL}/transaction/initialize`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
 
-  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-    return res.status(403).json({ error: 'Invalid CSRF token' });
+  const result = await response.json();
+
+  if (!response.ok || !result.status) {
+    throw new Error(result.message || 'Failed to initialize Paystack transaction');
   }
 
-  next();
+  return result.data;
 }
-
-app.use(verifyCsrfToken);
 
 // ============ Authentication Middleware ============
 
-function getCookieValue(req, cookieName) {
-  if (!req.headers.cookie) {
-    return null;
-  }
-
-  const cookies = req.headers.cookie.split(';').map(cookie => cookie.trim());
-  const match = cookies.find(cookie => cookie.startsWith(`${cookieName}=`));
-
-  return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
-}
-
-function setSecureCookie(res, cookieName, token, maxAgeMs = 7 * 24 * 60 * 60 * 1000) {
-  const secure = !isDevelopment;
-  const cookie = `${cookieName}=${token}; Path=/; HttpOnly; Max-Age=${Math.floor(maxAgeMs / 1000)}; SameSite=Lax${secure ? '; Secure' : ''}`;
-  res.setHeader('Set-Cookie', cookie);
-}
-
-function clearCookie(res, cookieName) {
-  const secure = !isDevelopment;
-  const cookie = `${cookieName}=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`;
-  res.setHeader('Set-Cookie', cookie);
-}
-
 function verifyToken(req, res, next) {
-  const token = getCookieValue(req, 'paynote_session') || req.headers.authorization?.split(' ')[1];
+  const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'No session provided' });
+    return res.status(401).json({ error: 'No bearer token provided' });
   }
 
   try {
@@ -240,7 +271,7 @@ function verifyToken(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired session' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 
@@ -272,13 +303,48 @@ app.post('/auth/signup', loginLimiter, [
       return res.status(400).json({ error: 'Email already registered' });
     }
 
+    const signupIp = normalizeIp(getClientIp(req));
+    const accountCount = await db.countUsersByIp(signupIp);
+
+    if (accountCount >= MAX_ACCOUNTS_PER_IP) {
+      await logActivity('signup_limit_reached', {
+        email,
+        name,
+        signupIp,
+        accountCount,
+        maxAllowed: MAX_ACCOUNTS_PER_IP
+      });
+
+      return res.status(429).json({
+        error: `Maximum ${MAX_ACCOUNTS_PER_IP} accounts per IP address allowed. Contact support if you need more.`
+      });
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const userId = Date.now().toString();
-    const newUser = await db.createUser(userId, email, name, hashedPassword);
+    const newUser = await db.createUser(userId, email, name, hashedPassword, {
+      signup_ip: signupIp,
+      billing_status: 'trial_pending',
+      billing_plan: 'free_trial',
+      monthly_charge: MONTHLY_CHARGE_NAIRA,
+      billing_currency: 'NGN',
+      payment_provider: 'paystack',
+      first_invoice_generated_at: null,
+      billing_cycle_started_at: null,
+      trial_ends_at: null,
+      next_billing_due: null
+    });
 
-    await logActivity('user_signup', { email, name });
+    await logActivity('user_signup', {
+      email,
+      name,
+      signupIp,
+      accountCount: accountCount + 1,
+      billingPlan: 'free_trial',
+      billingStatus: 'trial_pending'
+    });
 
     // Generate JWT token
     const token = jwt.sign(
@@ -287,11 +353,19 @@ app.post('/auth/signup', loginLimiter, [
       { expiresIn: '7d' }
     );
 
-    setSecureCookie(res, 'paynote_session', token);
-
     res.json({
       message: 'User registered successfully',
-      user: { id: newUser.id, email: newUser.email, name: newUser.name }
+      token,
+      user: { id: newUser.id, email: newUser.email, name: newUser.name },
+      billing: {
+        accountPlan: newUser.billing_plan,
+        billingStatus: newUser.billing_status,
+        monthlyChargeNaira: Number(newUser.monthly_charge || MONTHLY_CHARGE_NAIRA),
+        paymentProvider: newUser.payment_provider || 'paystack',
+        signupIp: newUser.signup_ip,
+        accountsOnIp: accountCount + 1,
+        maxAccountsPerIp: MAX_ACCOUNTS_PER_IP
+      }
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -333,10 +407,9 @@ app.post('/auth/login', loginLimiter, [
       { expiresIn: '7d' }
     );
 
-    setSecureCookie(res, 'paynote_session', token);
-
     res.json({
       message: 'Login successful',
+      token,
       user: { id: user.id, email: user.email, name: user.name }
     });
   } catch (error) {
@@ -345,20 +418,148 @@ app.post('/auth/login', loginLimiter, [
   }
 });
 
-app.get('/auth/csrf', (req, res) => {
-  const token = generateCsrfToken();
-  setCsrfCookie(res, token);
-  res.json({ csrfToken: token });
-});
-
 // Verify Token
 app.get('/auth/verify', verifyToken, (req, res) => {
   res.json({ valid: true, user: req.user });
 });
 
 app.post('/auth/logout', (req, res) => {
-  clearCookie(res, 'paynote_session');
   res.json({ message: 'Logged out successfully' });
+});
+
+app.post('/billing/checkout', verifyToken, async (req, res) => {
+  try {
+    const user = await db.getUserById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const now = new Date();
+    const trialEndsAt = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
+    const isInTrial = Boolean(
+      user.first_invoice_generated_at &&
+      trialEndsAt &&
+      now < trialEndsAt &&
+      user.billing_status !== 'active'
+    );
+
+    if (isInTrial) {
+      return res.status(400).json({
+        error: 'Your free trial is still active',
+        status: 'trial',
+        trialEndsAt: user.trial_ends_at,
+        nextBillingDue: user.next_billing_due || user.trial_ends_at
+      });
+    }
+
+    const paymentData = await initializePaystackTransaction(user, {
+      reason: 'Monthly subscription renewal',
+      cycle: 'renewal'
+    });
+
+    await db.updateUserBillingState(user.id, {
+      billing_status: 'pending_payment',
+      billing_plan: 'monthly_subscription',
+      payment_provider: 'paystack',
+      monthly_charge: MONTHLY_CHARGE_NAIRA,
+      billing_currency: 'NGN'
+    });
+
+    await logActivity('billing_checkout_initialized', {
+      userId: user.id,
+      email: user.email,
+      reference: paymentData.reference,
+      authorizationUrl: paymentData.authorization_url
+    });
+
+    res.json({
+      status: 'pending_payment',
+      reference: paymentData.reference,
+      authorizationUrl: paymentData.authorization_url,
+      amount: Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA),
+      currency: 'NGN',
+      provider: 'paystack'
+    });
+  } catch (error) {
+    console.error('Billing checkout error:', error);
+    res.status(500).json({ error: 'Failed to initialize payment' });
+  }
+});
+
+app.post('/webhooks/paystack', async (req, res) => {
+  try {
+    const signature = req.get('x-paystack-signature');
+
+    if (!PAYSTACK_WEBHOOK_SECRET) {
+      return res.status(500).json({ error: 'Paystack webhook secret is not configured' });
+    }
+
+    if (!signature) {
+      return res.status(400).json({ error: 'Missing Paystack signature' });
+    }
+
+    const computedSignature = crypto
+      .createHmac('sha512', PAYSTACK_WEBHOOK_SECRET)
+      .update(req.rawBody || Buffer.from(JSON.stringify(req.body)))
+      .digest('hex');
+
+    if (computedSignature !== signature) {
+      return res.status(400).json({ error: 'Invalid Paystack signature' });
+    }
+
+    const event = req.body;
+    const eventType = event.event;
+    const paymentData = event.data || {};
+    const metadata = paymentData.metadata || {};
+    const userId = metadata.userId || metadata.user_id;
+
+    if (!userId) {
+      return res.status(200).json({ status: 'ignored', reason: 'No user metadata found' });
+    }
+
+    const now = new Date();
+    const nextDue = new Date(now.getTime() + BILLING_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+    if (eventType === 'charge.success') {
+      await db.updateUserBillingState(userId, {
+        billing_status: 'active',
+        billing_plan: 'monthly_subscription',
+        payment_provider: 'paystack',
+        monthly_charge: MONTHLY_CHARGE_NAIRA,
+        billing_currency: 'NGN',
+        billing_cycle_started_at: now.toISOString(),
+        next_billing_due: nextDue.toISOString(),
+        trial_ends_at: null
+      });
+
+      await logActivity('paystack_payment_success', {
+        userId,
+        reference: paymentData.reference,
+        status: paymentData.status,
+        amount: paymentData.amount,
+        gateway: 'paystack'
+      });
+    } else if (eventType === 'charge.failed') {
+      await db.updateUserBillingState(userId, {
+        billing_status: 'charge_due',
+        billing_plan: 'monthly_subscription',
+        payment_provider: 'paystack'
+      });
+
+      await logActivity('paystack_payment_failed', {
+        userId,
+        reference: paymentData.reference,
+        status: paymentData.status,
+        gateway: 'paystack'
+      });
+    }
+
+    res.status(200).json({ status: 'success' });
+  } catch (error) {
+    console.error('Paystack webhook error:', error);
+    res.status(500).json({ error: 'Failed to process webhook' });
+  }
 });
 
 // ============ Invoice Routes (Protected) ============
@@ -391,13 +592,56 @@ app.post('/invoice', verifyToken, [
       amount
     );
 
+    const userRecord = await db.getUserById(userId);
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + BILLING_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+    const billingUpdates = {
+      monthly_charge: MONTHLY_CHARGE_NAIRA,
+      billing_currency: 'NGN',
+      payment_provider: 'paystack',
+      billing_plan: userRecord?.billing_plan || 'free_trial'
+    };
+
+    if (!userRecord?.first_invoice_generated_at) {
+      billingUpdates.first_invoice_generated_at = now.toISOString();
+      billingUpdates.billing_cycle_started_at = now.toISOString();
+      billingUpdates.trial_ends_at = trialEndsAt.toISOString();
+      billingUpdates.billing_status = 'trial';
+      billingUpdates.next_billing_due = trialEndsAt.toISOString();
+    } else if (userRecord.trial_ends_at && now > new Date(userRecord.trial_ends_at)) {
+      billingUpdates.billing_status = 'charge_due';
+      billingUpdates.next_billing_due = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    } else {
+      billingUpdates.billing_status = userRecord.billing_status || 'trial';
+      billingUpdates.next_billing_due = userRecord.next_billing_due || trialEndsAt.toISOString();
+    }
+
+    const updatedUser = await db.updateUserBillingState(userId, billingUpdates);
+
     await logActivity('invoice_created', {
       invoiceId: newInvoice.id,
       userId: userId,
-      amount: newInvoice.amount
+      amount: newInvoice.amount,
+      billingStatus: updatedUser.billing_status,
+      billingPlan: updatedUser.billing_plan,
+      monthlyChargeNaira: Number(updatedUser.monthly_charge || MONTHLY_CHARGE_NAIRA),
+      nextBillingDue: updatedUser.next_billing_due,
+      trialEndsAt: updatedUser.trial_ends_at
     });
 
-    res.json(newInvoice);
+    res.json({
+      ...newInvoice,
+      billing: {
+        status: updatedUser.billing_status,
+        plan: updatedUser.billing_plan,
+        monthlyChargeNaira: Number(updatedUser.monthly_charge || MONTHLY_CHARGE_NAIRA),
+        currency: updatedUser.billing_currency || 'NGN',
+        paymentProvider: updatedUser.payment_provider || 'paystack',
+        trialEndsAt: updatedUser.trial_ends_at,
+        nextBillingDue: updatedUser.next_billing_due,
+        firstInvoiceGeneratedAt: updatedUser.first_invoice_generated_at
+      }
+    });
   } catch (error) {
     console.error('Create invoice error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -471,6 +715,49 @@ app.delete('/invoice/:id', verifyToken, [
   }
 });
 
+app.get('/billing/status', verifyToken, async (req, res) => {
+  try {
+    const user = await db.getUserById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const now = new Date();
+    const trialEndsAt = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
+    const nextBillingDue = user.next_billing_due ? new Date(user.next_billing_due) : null;
+    const isTrialActive = Boolean(user.first_invoice_generated_at && trialEndsAt && now < trialEndsAt && user.billing_status !== 'active');
+    const isPaymentRequired = Boolean(
+      user.billing_status === 'charge_due' ||
+      user.billing_status === 'pending_payment' ||
+      (user.first_invoice_generated_at && trialEndsAt && now >= trialEndsAt && user.billing_status !== 'active') ||
+      (user.billing_status === 'active' && nextBillingDue && now > nextBillingDue)
+    );
+    const effectiveStatus = isTrialActive ? 'trial' : (user.billing_status || 'trial_pending');
+
+    const accountsOnIp = user.signup_ip ? await db.countUsersByIp(user.signup_ip) : 0;
+
+    res.json({
+      email: user.email,
+      signupIp: user.signup_ip,
+      accountsOnIp,
+      maxAccountsPerIp: MAX_ACCOUNTS_PER_IP,
+      plan: user.billing_plan || 'free_trial',
+      status: isPaymentRequired ? 'charge_due' : effectiveStatus,
+      paymentRequired: isPaymentRequired,
+      firstInvoiceGeneratedAt: user.first_invoice_generated_at,
+      trialEndsAt: user.trial_ends_at,
+      nextBillingDue: user.next_billing_due || user.trial_ends_at,
+      monthlyChargeNaira: Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA),
+      currency: user.billing_currency || 'NGN',
+      paymentProvider: user.payment_provider || 'paystack'
+    });
+  } catch (error) {
+    console.error('Billing status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ============ Admin Routes ============
 
 // Admin Login
@@ -500,10 +787,9 @@ app.post('/admin/login', loginLimiter, [
       { expiresIn: '24h' }
     );
 
-    setSecureCookie(res, 'paynote_admin_session', token);
-
     res.json({
       message: 'Admin login successful',
+      token,
       user: { id: 'admin', email: email, role: 'admin' }
     });
   } catch (error) {
@@ -514,10 +800,10 @@ app.post('/admin/login', loginLimiter, [
 
 // Verify Admin
 function verifyAdmin(req, res, next) {
-  const token = getCookieValue(req, 'paynote_admin_session') || req.headers.authorization?.split(' ')[1];
+  const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'No admin session provided' });
+    return res.status(401).json({ error: 'No bearer token provided' });
   }
 
   try {
@@ -528,7 +814,7 @@ function verifyAdmin(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired admin session' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 
@@ -537,7 +823,6 @@ app.get('/admin/verify', verifyAdmin, (req, res) => {
 });
 
 app.post('/admin/logout', (req, res) => {
-  clearCookie(res, 'paynote_admin_session');
   res.json({ message: 'Admin logged out successfully' });
 });
 

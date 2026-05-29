@@ -22,7 +22,7 @@ function Login({ onLogin }) {
 
     try {
       const data = await login(email.trim().toLowerCase(), password)
-      onLogin(data.user)
+      onLogin(data)
       navigate('/dashboard')
     } catch (err) {
       setError(err.message)

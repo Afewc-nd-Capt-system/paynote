@@ -32,9 +32,35 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  signup_ip VARCHAR(45),
+  billing_status VARCHAR(50) DEFAULT 'trial_pending',
+  billing_plan VARCHAR(50) DEFAULT 'free_trial',
+  monthly_charge NUMERIC(10,2) DEFAULT 3000.00,
+  billing_currency VARCHAR(10) DEFAULT 'NGN',
+  payment_provider VARCHAR(50) DEFAULT 'paystack',
+  first_invoice_generated_at TIMESTAMP WITH TIME ZONE,
+  billing_cycle_started_at TIMESTAMP WITH TIME ZONE,
+  trial_ends_at TIMESTAMP WITH TIME ZONE,
+  next_billing_due TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add IP-based indexing and monetization tracking columns if upgrading an existing database
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS signup_ip VARCHAR(45),
+  ADD COLUMN IF NOT EXISTS billing_status VARCHAR(50) DEFAULT 'trial_pending',
+  ADD COLUMN IF NOT EXISTS billing_plan VARCHAR(50) DEFAULT 'free_trial',
+  ADD COLUMN IF NOT EXISTS monthly_charge NUMERIC(10,2) DEFAULT 3000.00,
+  ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(10) DEFAULT 'NGN',
+  ADD COLUMN IF NOT EXISTS payment_provider VARCHAR(50) DEFAULT 'paystack',
+  ADD COLUMN IF NOT EXISTS first_invoice_generated_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS billing_cycle_started_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS next_billing_due TIMESTAMP WITH TIME ZONE;
+
+CREATE INDEX IF NOT EXISTS idx_users_signup_ip ON users(signup_ip);
+CREATE INDEX IF NOT EXISTS idx_users_billing_status ON users(billing_status);
 
 -- Create invoices table
 CREATE TABLE IF NOT EXISTS invoices (

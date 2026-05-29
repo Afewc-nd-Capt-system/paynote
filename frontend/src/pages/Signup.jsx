@@ -47,7 +47,7 @@ function Signup({ onLogin }) {
 
     try {
       const data = await signup(email.trim().toLowerCase(), password, name.trim())
-      onLogin(data.user)
+      onLogin(data)
       navigate('/dashboard')
     } catch (err) {
       setError(err.message)

@@ -1,49 +1,29 @@
-const API = import.meta.env.VITE_API_URL
-let csrfToken = null
+import { persistSession, clearSession } from './authSession'
 
-const getCsrfToken = async () => {
-  if (csrfToken) return csrfToken
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-  const response = await fetch(`${API}/auth/csrf`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      'Accept': 'application/json'
-    }
-  })
-
-  const contentType = response.headers.get('content-type') || ''
-  const data = contentType.includes('application/json') ? await response.json() : null
-
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || 'Failed to initialize security token')
-  }
-
-  csrfToken = data?.csrfToken || null
-  if (!csrfToken) {
-    throw new Error('Security token missing')
-  }
-
-  return csrfToken
+const getStoredToken = (role = 'user') => {
+  const tokenKey = role === 'admin' ? 'admin_token' : 'paynote_token'
+  return localStorage.getItem(tokenKey)
 }
 
 const request = async (path, options = {}) => {
   const method = (options.method || 'GET').toUpperCase()
+  const isAdminRoute = path.startsWith('/admin/')
+  const role = isAdminRoute ? 'admin' : 'user'
+  const authToken = getStoredToken(role)
 
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const token = await getCsrfToken()
-    options.headers = {
-      ...options.headers,
-      'X-CSRF-Token': token
-    }
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers
+  }
+
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`
   }
 
   const response = await fetch(`${API}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers
-    },
+    headers,
     ...options
   })
 
@@ -51,7 +31,30 @@ const request = async (path, options = {}) => {
   const data = contentType.includes('application/json') ? await response.json() : null
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearSession(role)
+    }
     throw new Error(data?.error || data?.message || 'Request failed')
+  }
+
+  if (data?.token && path === '/auth/login') {
+    persistSession('user', data.user, data.token)
+  }
+
+  if (data?.token && path === '/auth/signup') {
+    persistSession('user', data.user, data.token)
+  }
+
+  if (data?.token && path === '/admin/login') {
+    persistSession('admin', data.user, data.token)
+  }
+
+  if (path === '/auth/logout') {
+    clearSession('user')
+  }
+
+  if (path === '/admin/logout') {
+    clearSession('admin')
   }
 
   return data
