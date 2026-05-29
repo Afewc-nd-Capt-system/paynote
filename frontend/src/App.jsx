@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
+import InstallPrompt from './components/InstallPrompt'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
@@ -9,7 +10,7 @@ import Invoices from './pages/Invoices'
 import Settings from './pages/Settings'
 import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
-import { verifyToken } from './api'
+import { logout as logoutUser, verifyToken, verifyAdminSession, adminLogout } from './api'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -17,48 +18,71 @@ function App() {
   const [adminToken, setAdminToken] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [isInstalled, setIsInstalled] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
-    const stored = localStorage.getItem('paynote_user')
-    const token = localStorage.getItem('paynote_token')
-    const adminStored = localStorage.getItem('admin_user')
-    const adminTok = localStorage.getItem('admin_token')
-    
-    if (adminStored && adminTok) {
+    let isMounted = true
+
+    const restoreSession = async () => {
       try {
-        const adminData = JSON.parse(adminStored)
-        setAdminUser(adminData)
-        setAdminToken(adminTok)
-      } catch (e) {
-        localStorage.removeItem('admin_user')
-        localStorage.removeItem('admin_token')
+        const userResponse = await verifyToken()
+        if (isMounted && userResponse?.user) {
+          setUser(userResponse.user)
+        } else if (isMounted) {
+          setUser(null)
+        }
+      } catch (error) {
+        if (isMounted) setUser(null)
+      }
+
+      try {
+        const adminResponse = await verifyAdminSession()
+        if (isMounted && adminResponse?.user) {
+          setAdminUser(adminResponse.user)
+          setAdminToken(null)
+        } else if (isMounted) {
+          setAdminUser(null)
+          setAdminToken(null)
+        }
+      } catch (error) {
+        if (isMounted) {
+          setAdminUser(null)
+          setAdminToken(null)
+        }
+      } finally {
+        if (isMounted) setLoading(false)
       }
     }
-    
-    if (stored && token) {
-      try {
-        const userData = JSON.parse(stored)
-        // Verify token is valid
-        verifyToken(token)
-          .then(() => {
-            setUser(userData)
-          })
-          .catch(() => {
-            // Token is invalid, clear storage
-            localStorage.removeItem('paynote_user')
-            localStorage.removeItem('paynote_token')
-            setUser(null)
-          })
-          .finally(() => setLoading(false))
-      } catch (e) {
-        localStorage.removeItem('paynote_user')
-        localStorage.removeItem('paynote_token')
-        setUser(null)
-        setLoading(false)
-      }
-    } else {
-      setLoading(false)
+
+    restoreSession()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleInstallPrompt = (event) => {
+      event.preventDefault()
+      setInstallPrompt(event)
+    }
+
+    const handleInstalled = () => {
+      setInstallPrompt(null)
+      setIsInstalled(true)
+    }
+
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
+    setIsInstalled(standalone)
+
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt)
+    window.addEventListener('appinstalled', handleInstalled)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleInstallPrompt)
+      window.removeEventListener('appinstalled', handleInstalled)
     }
   }, [])
 
@@ -67,22 +91,37 @@ function App() {
   }
 
   const handleAdminLogin = (adminData) => {
-    setAdminUser(adminData.user)
-    setAdminToken(adminData.token)
+    setAdminUser(adminData.user || adminData)
+    setAdminToken(null)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('paynote_user')
-    localStorage.removeItem('paynote_token')
+  const handleLogout = async () => {
+    try {
+      await logoutUser()
+    } catch (error) {
+      // Ignore logout errors so the client clears local UI state
+    }
+
     setUser(null)
     setSidebarOpen(false)
   }
 
-  const handleAdminLogout = () => {
-    localStorage.removeItem('admin_user')
-    localStorage.removeItem('admin_token')
+  const handleAdminLogout = async () => {
+    try {
+      await adminLogout()
+    } catch (error) {
+      // Ignore logout errors so the client clears local UI state
+    }
+
     setAdminUser(null)
     setAdminToken(null)
+  }
+
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    await installPrompt.userChoice
+    setInstallPrompt(null)
   }
 
   const isAuthPage = ['/login', '/signup', '/admin-login'].includes(location.pathname)
@@ -94,12 +133,41 @@ function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#f5f5f7'
+        background: 'radial-gradient(circle at top, rgba(14,165,233,0.16), transparent 28%), radial-gradient(circle at bottom, rgba(124,58,237,0.12), transparent 25%), #f4f5f8'
       }}>
         <div style={{
-          fontSize: 18,
-          color: '#86868b'
-        }}>Loading...</div>
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          padding: '24px 28px',
+          borderRadius: 24,
+          background: 'rgba(255,255,255,0.72)',
+          border: '1px solid rgba(148,163,184,0.18)',
+          boxShadow: '0 24px 80px rgba(15,23,42,0.12)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <div style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 18,
+            color: '#fff',
+            background: 'linear-gradient(135deg, #0f172a, #2563eb)'
+          }}>💰</div>
+          <div style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: '#0f172a'
+          }}>Restoring your workspace</div>
+          <div style={{
+            fontSize: 13,
+            color: '#64748b'
+          }}>Checking your secure session...</div>
+        </div>
       </div>
     )
   }
@@ -109,7 +177,11 @@ function App() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      background: 'radial-gradient(circle at top, rgba(14,165,233,0.12), transparent 24%), radial-gradient(circle at bottom right, rgba(124,58,237,0.13), transparent 28%), #f4f5f8'
+    }}>
       {user && (
         <Sidebar
           user={user}
@@ -129,14 +201,16 @@ function App() {
             top: 16,
             left: 16,
             zIndex: 100,
-            background: 'white',
+            background: 'rgba(255,255,255,0.82)',
             borderRadius: 12,
             width: 44,
             height: 44,
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
-            cursor: 'pointer'
+            boxShadow: '0 10px 24px rgba(15,23,42,0.16)',
+            cursor: 'pointer',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(148,163,184,0.28)'
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d1d1f" strokeWidth="2" strokeLinecap="round">
@@ -149,10 +223,10 @@ function App() {
 
       <main style={{
         flex: 1,
-        marginLeft: user ? 260 : 0,
-        padding: '24px',
+        marginLeft: user ? 'min(86vw, 280px)' : 0,
+        padding: 'clamp(12px, 3.4vw, 24px)',
         paddingBottom: 24,
-        maxWidth: user ? 'calc(100% - 260px)' : '100%',
+        width: '100%',
         transition: 'margin-left 0.3s ease',
         minHeight: '100vh'
       }}>
@@ -184,6 +258,8 @@ function App() {
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
         </Routes>
       </main>
+
+      <InstallPrompt isReady={!isInstalled && Boolean(installPrompt)} onInstall={handleInstall} />
 
       <style>{`
         @media (max-width: 768px) {

@@ -31,14 +31,7 @@ function CreateInvoice({ user }) {
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('paynote_token')
-      if (!token) {
-        setError('Authentication token not found. Please login again.')
-        setLoading(false)
-        return
-      }
-
-      const data = await createInvoice(token, form.customer, form.phone, form.item, form.amount)
+      const data = await createInvoice(form.customer, form.phone, form.item, form.amount)
       setCreatedInvoice(data)
       setForm({ customer: '', phone: '', item: '', amount: '' })
     } catch (err) {

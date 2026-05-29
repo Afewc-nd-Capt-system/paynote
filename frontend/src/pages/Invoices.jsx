@@ -17,13 +17,7 @@ function Invoices({ user }) {
   const fetchInvoices = async () => {
     try {
       setError('')
-      const token = localStorage.getItem('paynote_token')
-      if (!token) {
-        setError('Authentication token not found. Please login again.')
-        setLoading(false)
-        return
-      }
-      const data = await getInvoices(token)
+      const data = await getInvoices()
       setInvoices(data.reverse())
     } catch (err) {
       setError(err.message || 'Failed to fetch invoices')
@@ -35,12 +29,7 @@ function Invoices({ user }) {
   const markAsPaid = async (id) => {
     try {
       setError('')
-      const token = localStorage.getItem('paynote_token')
-      if (!token) {
-        setError('Authentication token not found. Please login again.')
-        return
-      }
-      const response = await markInvoicePaid(token, id)
+      await markInvoicePaid(id)
       setInvoices(invoices.map(inv =>
         inv.id === id ? { ...inv, status: 'paid' } : inv
       ))
@@ -54,12 +43,7 @@ function Invoices({ user }) {
 
     try {
       setError('')
-      const token = localStorage.getItem('paynote_token')
-      if (!token) {
-        setError('Authentication token not found. Please login again.')
-        return
-      }
-      await deleteInvoice(token, id)
+      await deleteInvoice(id)
       setInvoices(invoices.filter(inv => inv.id !== id))
     } catch (err) {
       setError(err.message || 'Failed to delete invoice')

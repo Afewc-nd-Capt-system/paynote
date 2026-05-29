@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
@@ -17,7 +18,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const isDevelopment = NODE_ENV === 'development';
 
 // Check for required environment variables
-const requiredEnvVars = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CLIENT_URL'];
+const requiredEnvVars = ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CORS_ORIGIN'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
@@ -33,19 +34,55 @@ if (missingEnvVars.length > 0) {
   }
 }
 
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean)
+
+const CSRF_COOKIE_NAME = 'paynote_csrf_token'
+const CSRF_HEADER_NAME = 'x-csrf-token'
+
 // Security Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+    }
+  },
+  referrerPolicy: {
+    policy: 'no-referrer'
+  },
+  crossOriginResourcePolicy: {
+    policy: 'same-origin'
+  }
+}));
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+
+    return callback(new Error('Not allowed by CORS'))
+  },
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb' }));
-
-// Helper function to parse CORS origins from comma-separated string
-function parseCorsOrigin(corsString) {
-  return corsString.split(',').map(origin => origin.trim());
-}
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+  next()
+})
 
 // Rate limiting for login attempts (5 requests per 15 minutes)
 const loginLimiter = rateLimit({
@@ -88,6 +125,35 @@ if (!ADMIN_USER_EMAIL || !ADMIN_PASSWORD) {
 
 // ============ Helper Functions ============
 
+function sanitizeString(value) {
+  if (typeof value !== 'string') return value;
+
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function sanitizeDetails(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => sanitizeDetails(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, sanitizeDetails(entry)])
+    );
+  }
+
+  if (typeof value === 'string') {
+    return sanitizeString(value);
+  }
+
+  return value;
+}
+
 function validatePasswordStrength(password) {
   if (password.length < 8) return 'Password must be at least 8 characters';
   if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
@@ -99,20 +165,74 @@ function validatePasswordStrength(password) {
 
 async function logActivity(action, details) {
   try {
-    await db.logActivity(Date.now().toString(), action, details);
+    await db.logActivity(Date.now().toString(), action, sanitizeDetails(details));
   } catch (error) {
     console.error('Failed to log activity:', error.message);
     // Don't throw - logging errors shouldn't break the app
   }
 }
 
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function setCsrfCookie(res, token) {
+  const secure = !isDevelopment;
+  const cookie = `${CSRF_COOKIE_NAME}=${token}; Path=/; HttpOnly; Max-Age=86400; SameSite=Lax${secure ? '; Secure' : ''}`;
+  res.setHeader('Set-Cookie', cookie);
+}
+
+function verifyCsrfToken(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next();
+  }
+
+  if (req.path === '/auth/csrf') {
+    return next();
+  }
+
+  const cookieToken = getCookieValue(req, CSRF_COOKIE_NAME);
+  const headerToken = req.get(CSRF_HEADER_NAME);
+
+  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    return res.status(403).json({ error: 'Invalid CSRF token' });
+  }
+
+  next();
+}
+
+app.use(verifyCsrfToken);
+
 // ============ Authentication Middleware ============
 
+function getCookieValue(req, cookieName) {
+  if (!req.headers.cookie) {
+    return null;
+  }
+
+  const cookies = req.headers.cookie.split(';').map(cookie => cookie.trim());
+  const match = cookies.find(cookie => cookie.startsWith(`${cookieName}=`));
+
+  return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
+}
+
+function setSecureCookie(res, cookieName, token, maxAgeMs = 7 * 24 * 60 * 60 * 1000) {
+  const secure = !isDevelopment;
+  const cookie = `${cookieName}=${token}; Path=/; HttpOnly; Max-Age=${Math.floor(maxAgeMs / 1000)}; SameSite=Lax${secure ? '; Secure' : ''}`;
+  res.setHeader('Set-Cookie', cookie);
+}
+
+function clearCookie(res, cookieName) {
+  const secure = !isDevelopment;
+  const cookie = `${cookieName}=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`;
+  res.setHeader('Set-Cookie', cookie);
+}
+
 function verifyToken(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = getCookieValue(req, 'paynote_session') || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return res.status(401).json({ error: 'No session provided' });
   }
 
   try {
@@ -120,7 +240,7 @@ function verifyToken(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: 'Invalid or expired session' });
   }
 }
 
@@ -128,9 +248,9 @@ function verifyToken(req, res, next) {
 
 // Sign Up
 app.post('/auth/signup', loginLimiter, [
-  body('email').isEmail().normalizeEmail().toLowerCase(),
-  body('password').isLength({ min: 8 }).trim(),
-  body('name').trim().isLength({ min: 2, max: 100 })
+  body('email').isEmail().trim().normalizeEmail().toLowerCase(),
+  body('password').trim().isLength({ min: 8 }),
+  body('name').trim().isLength({ min: 2, max: 100 }).customSanitizer(value => sanitizeString(value))
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -167,9 +287,10 @@ app.post('/auth/signup', loginLimiter, [
       { expiresIn: '7d' }
     );
 
+    setSecureCookie(res, 'paynote_session', token);
+
     res.json({
       message: 'User registered successfully',
-      token,
       user: { id: newUser.id, email: newUser.email, name: newUser.name }
     });
   } catch (error) {
@@ -180,8 +301,8 @@ app.post('/auth/signup', loginLimiter, [
 
 // Login
 app.post('/auth/login', loginLimiter, [
-  body('email').isEmail().normalizeEmail().toLowerCase(),
-  body('password').trim()
+  body('email').isEmail().trim().normalizeEmail().toLowerCase().customSanitizer(value => sanitizeString(value)),
+  body('password').trim().customSanitizer(value => sanitizeString(value))
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -212,9 +333,10 @@ app.post('/auth/login', loginLimiter, [
       { expiresIn: '7d' }
     );
 
+    setSecureCookie(res, 'paynote_session', token);
+
     res.json({
       message: 'Login successful',
-      token,
       user: { id: user.id, email: user.email, name: user.name }
     });
   } catch (error) {
@@ -223,18 +345,29 @@ app.post('/auth/login', loginLimiter, [
   }
 });
 
+app.get('/auth/csrf', (req, res) => {
+  const token = generateCsrfToken();
+  setCsrfCookie(res, token);
+  res.json({ csrfToken: token });
+});
+
 // Verify Token
 app.get('/auth/verify', verifyToken, (req, res) => {
   res.json({ valid: true, user: req.user });
+});
+
+app.post('/auth/logout', (req, res) => {
+  clearCookie(res, 'paynote_session');
+  res.json({ message: 'Logged out successfully' });
 });
 
 // ============ Invoice Routes (Protected) ============
 
 // Create Invoice
 app.post('/invoice', verifyToken, [
-  body('customer').trim().isLength({ min: 2, max: 100 }),
-  body('phone').trim().matches(/^[0-9\-\+\s\(\)]+$/).isLength({ min: 5, max: 20 }),
-  body('item').trim().isLength({ min: 1, max: 200 }),
+  body('customer').trim().isLength({ min: 2, max: 100 }).customSanitizer(value => sanitizeString(value)),
+  body('phone').trim().matches(/^[0-9\-\+\s\(\)]+$/).isLength({ min: 5, max: 20 }).customSanitizer(value => sanitizeString(value)),
+  body('item').trim().isLength({ min: 1, max: 200 }).customSanitizer(value => sanitizeString(value)),
   body('amount').isFloat({ min: 0.01 })
 ], async (req, res) => {
   try {
@@ -284,7 +417,7 @@ app.get('/invoices', verifyToken, async (req, res) => {
 
 // Mark as Paid
 app.post('/mark-paid', verifyToken, [
-  body('id').trim()
+  body('id').trim().customSanitizer(value => sanitizeString(value))
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -315,7 +448,7 @@ app.post('/mark-paid', verifyToken, [
 
 // Delete Invoice
 app.delete('/invoice/:id', verifyToken, [
-  param('id').trim()
+  param('id').trim().customSanitizer(value => sanitizeString(value))
 ], async (req, res) => {
   try {
     const { id } = req.params;
@@ -342,8 +475,8 @@ app.delete('/invoice/:id', verifyToken, [
 
 // Admin Login
 app.post('/admin/login', loginLimiter, [
-  body('email').isEmail().normalizeEmail().toLowerCase(),
-  body('password').trim()
+  body('email').isEmail().trim().normalizeEmail().toLowerCase().customSanitizer(value => sanitizeString(value)),
+  body('password').trim().customSanitizer(value => sanitizeString(value))
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -367,9 +500,10 @@ app.post('/admin/login', loginLimiter, [
       { expiresIn: '24h' }
     );
 
+    setSecureCookie(res, 'paynote_admin_session', token);
+
     res.json({
       message: 'Admin login successful',
-      token,
       user: { id: 'admin', email: email, role: 'admin' }
     });
   } catch (error) {
@@ -380,10 +514,10 @@ app.post('/admin/login', loginLimiter, [
 
 // Verify Admin
 function verifyAdmin(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = getCookieValue(req, 'paynote_admin_session') || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return res.status(401).json({ error: 'No admin session provided' });
   }
 
   try {
@@ -394,9 +528,18 @@ function verifyAdmin(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: 'Invalid or expired admin session' });
   }
 }
+
+app.get('/admin/verify', verifyAdmin, (req, res) => {
+  res.json({ valid: true, user: req.user });
+});
+
+app.post('/admin/logout', (req, res) => {
+  clearCookie(res, 'paynote_admin_session');
+  res.json({ message: 'Admin logged out successfully' });
+});
 
 // Get Admin Dashboard Stats
 app.get('/admin/stats', verifyAdmin, async (req, res) => {

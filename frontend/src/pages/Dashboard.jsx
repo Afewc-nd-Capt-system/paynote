@@ -39,13 +39,7 @@ function Dashboard({ user }) {
   const fetchInvoices = async () => {
     try {
       setError('')
-      const token = localStorage.getItem('paynote_token')
-      if (!token) {
-        setError('Authentication token not found. Please login again.')
-        setLoading(false)
-        return
-      }
-      const data = await getInvoices(token)
+      const data = await getInvoices()
       setInvoices(data)
     } catch (err) {
       setError(err.message || 'Failed to fetch invoices')
@@ -218,15 +212,15 @@ function Dashboard({ user }) {
       {/* Stats Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 16,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
+        gap: 'clamp(12px, 3vw, 16px)',
         marginBottom: 32
       }}>
         {stats.map((stat, idx) => (
           <div key={idx} style={{
             background: 'white',
             borderRadius: 18,
-            padding: '24px 20px',
+            padding: 'clamp(18px, 4vw, 24px) clamp(16px, 3.8vw, 20px)',
             boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
             transition: 'transform 0.2s ease, box-shadow 0.2s ease'
           }}
@@ -273,15 +267,15 @@ function Dashboard({ user }) {
       {/* Analytics Section */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: 24,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+        gap: 'clamp(16px, 4vw, 24px)',
         marginBottom: 32
       }}>
         {/* Sales Chart */}
         <div style={{
           background: 'white',
           borderRadius: 18,
-          padding: '24px 20px',
+          padding: 'clamp(18px, 4vw, 24px) clamp(16px, 3.8vw, 20px)',
           boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
           gridColumn: '1 / -1'
         }}>
@@ -291,7 +285,7 @@ function Dashboard({ user }) {
             color: '#1d1d1f',
             marginBottom: 20
           }}>Sales Trend (Last 30 Days)</h2>
-          <div style={{ height: 300 }}>
+          <div style={{ height: 'clamp(220px, 48vw, 300px)' }}>
             <Line data={salesChartData} options={salesChartOptions} />
           </div>
         </div>

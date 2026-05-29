@@ -8,11 +8,12 @@ function PageHeader({ title, subtitle, actionText, onAction }) {
       alignItems: 'flex-start',
       gap: 16,
       flexWrap: 'wrap',
-      marginBottom: 24
+      marginBottom: 24,
+      width: '100%'
     }}>
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, width: 'min(100%, 680px)' }}>
         <h1 style={{
-          fontSize: 28,
+          fontSize: 'clamp(1.65rem, 5.2vw, 2.1rem)',
           fontWeight: 700,
           color: 'var(--apple-text)',
           letterSpacing: '-0.5px',
@@ -20,10 +21,10 @@ function PageHeader({ title, subtitle, actionText, onAction }) {
           lineHeight: 1.1
         }}>{title}</h1>
         <p style={{
-          fontSize: 15,
+          fontSize: 'clamp(0.94rem, 2.8vw, 1rem)',
           color: 'var(--apple-muted)',
           margin: 0,
-          maxWidth: 560,
+          maxWidth: 'min(100%, 560px)',
           lineHeight: 1.6
         }}>{subtitle}</p>
       </div>
@@ -32,15 +33,15 @@ function PageHeader({ title, subtitle, actionText, onAction }) {
         <button
           onClick={onAction}
           style={{
-            padding: '12px 18px',
+            padding: 'clamp(10px, 2.8vw, 12px) clamp(14px, 4vw, 18px)',
             borderRadius: 14,
             background: 'linear-gradient(135deg, var(--apple-link) 0%, #5856D6 100%)',
             color: 'white',
-            fontSize: 15,
+            fontSize: 'clamp(0.88rem, 2.4vw, 0.95rem)',
             fontWeight: 600,
             border: 'none',
             cursor: 'pointer',
-            minWidth: 140,
+            minWidth: 'min(100%, 140px)',
             transition: 'transform 0.2s ease, box-shadow 0.2s ease',
             boxShadow: '0 8px 20px rgba(0,122,255,0.18)',
             alignSelf: 'center'

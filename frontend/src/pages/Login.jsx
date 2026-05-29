@@ -22,8 +22,6 @@ function Login({ onLogin }) {
 
     try {
       const data = await login(email.trim().toLowerCase(), password)
-      localStorage.setItem('paynote_token', data.token)
-      localStorage.setItem('paynote_user', JSON.stringify(data.user))
       onLogin(data.user)
       navigate('/dashboard')
     } catch (err) {
@@ -39,17 +37,19 @@ function Login({ onLogin }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
-      background: '#f5f5f7'
+      padding: 'clamp(12px, 4vw, 24px)',
+      background: 'radial-gradient(circle at top, rgba(14,165,233,0.18), transparent 28%), radial-gradient(circle at bottom, rgba(124,58,237,0.16), transparent 26%), #f4f5f8'
     }}>
       <div style={{
-        background: 'white',
-        borderRadius: 20,
-        padding: '36px 24px',
-        width: '100%',
-        maxWidth: 420,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.08)',
-        textAlign: 'center'
+        background: 'rgba(255,255,255,0.72)',
+        borderRadius: 'clamp(20px, 4.8vw, 28px)',
+        padding: 'clamp(20px, 5.6vw, 36px) clamp(16px, 4.2vw, 24px)',
+        width: 'min(100%, 420px)',
+        maxWidth: '92vw',
+        boxShadow: '0 30px 90px rgba(15,23,42,0.18)',
+        textAlign: 'center',
+        border: '1px solid rgba(148,163,184,0.2)',
+        backdropFilter: 'blur(10px)'
       }}>
         <div style={{
           width: 64,

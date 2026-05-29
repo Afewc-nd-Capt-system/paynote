@@ -42,14 +42,17 @@ function Sidebar({ user, isOpen, onClose, onLogout }) {
           position: 'fixed',
           top: 0,
           left: 0,
-          width: 260,
+          width: 'min(86vw, 280px)',
+          maxWidth: 280,
           height: '100vh',
-          background: '#ffffff',
-          boxShadow: '2px 0 20px rgba(0,0,0,0.06)',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(247,249,255,0.82))',
+          boxShadow: '16px 0 44px rgba(15,23,42,0.12)',
+          borderRight: '1px solid rgba(148,163,184,0.2)',
+          backdropFilter: 'blur(10px)',
           zIndex: 300,
           display: 'flex',
           flexDirection: 'column',
-          padding: '24px 0',
+          padding: 'clamp(16px, 4vw, 24px) 0',
           transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
@@ -101,13 +104,15 @@ function Sidebar({ user, isOpen, onClose, onLogout }) {
                 alignItems: 'center',
                 gap: 14,
                 padding: '14px 16px',
-                borderRadius: 12,
-                marginBottom: 4,
-                color: isActive ? '#007AFF' : '#86868b',
-                background: isActive ? 'rgba(0,122,255,0.08)' : 'transparent',
-                fontWeight: isActive ? 600 : 500,
+                borderRadius: 14,
+                marginBottom: 6,
+                color: isActive ? '#0f172a' : '#64748b',
+                background: isActive ? 'linear-gradient(90deg, rgba(14,165,233,0.18), rgba(96,165,250,0.22))' : 'rgba(255,255,255,0.32)',
+                border: isActive ? '1px solid rgba(14,165,233,0.24)' : '1px solid transparent',
+                boxShadow: isActive ? '0 12px 30px rgba(14,165,233,0.16)' : 'none',
+                fontWeight: isActive ? 700 : 600,
                 fontSize: 15,
-                transition: 'all 0.2s ease',
+                transition: 'all 0.25s ease',
                 textDecoration: 'none'
               })}
             >
@@ -127,17 +132,17 @@ function Sidebar({ user, isOpen, onClose, onLogout }) {
               alignItems: 'center',
               gap: 14,
               padding: '14px 16px',
-              borderRadius: 12,
-              background: 'transparent',
-              color: '#ff3b30',
-              fontWeight: 500,
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.72)',
+              color: '#b91c1c',
+              fontWeight: 700,
               fontSize: 15,
-              border: 'none',
+              border: '1px solid rgba(254,202,202,0.96)',
               cursor: 'pointer',
-              transition: 'background 0.2s ease'
+              transition: 'all 0.2s ease'
             }}
-            onMouseEnter={(e) => e.target.style.background = 'rgba(255,59,48,0.06)'}
-            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+            onMouseEnter={(e) => e.target.style.background = 'rgba(254,242,242,0.94)'}
+            onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.72)'}
           >
             <span style={{ fontSize: 18 }}>🚪</span>
             Log Out
