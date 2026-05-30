@@ -254,5 +254,27 @@
     "details": {
       "email": "ceoafec@gmail.com"
     }
+  },
+  {
+    "id": "1780140935604",
+    "timestamp": "2026-05-30T11:35:35.754Z",
+    "action": "billing_checkout_initialized",
+    "details": {
+      "userId": "1777953424766",
+      "email": "ceoafec@gmail.com",
+      "paymentLink": "https://paystack.shop/pay/n0bt6i18lq",
+      "mode": "external_link"
+    }
+  },
+  {
+    "id": "1780141161718",
+    "timestamp": "2026-05-30T11:39:21.719Z",
+    "action": "billing_checkout_initialized",
+    "details": {
+      "userId": "1777953424766",
+      "email": "ceoafec@gmail.com",
+      "paymentLink": "https://paystack.shop/pay/n0bt6i18lq",
+      "mode": "external_link"
+    }
   }
 ]

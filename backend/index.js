@@ -302,15 +302,20 @@ app.post('/auth/signup', loginLimiter, [
     res.json({
       message: 'User registered successfully',
       token,
-      user: { id: newUser.id, email: newUser.email, name: newUser.name },
-      billing: {
-        accountPlan: newUser.billing_plan,
-        billingStatus: newUser.billing_status,
-        monthlyChargeNaira: Number(newUser.monthly_charge || MONTHLY_CHARGE_NAIRA),
-        paymentProvider: newUser.payment_provider || 'paystack',
-        signupIp: newUser.signup_ip,
-        accountsOnIp: accountCount + 1,
-        maxAccountsPerIp: MAX_ACCOUNTS_PER_IP
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        billing: {
+          status: newUser.billing_status,
+          plan: newUser.billing_plan,
+          monthlyChargeNaira: Number(newUser.monthly_charge || MONTHLY_CHARGE_NAIRA),
+          currency: newUser.billing_currency || 'NGN',
+          paymentProvider: newUser.payment_provider || 'paystack',
+          trialEndsAt: newUser.trial_ends_at,
+          nextBillingDue: newUser.next_billing_due,
+          firstInvoiceGeneratedAt: newUser.first_invoice_generated_at
+        }
       }
     });
   } catch (error) {
@@ -356,7 +361,21 @@ app.post('/auth/login', loginLimiter, [
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user.id, email: user.email, name: user.name }
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        billing: {
+          status: user.billing_status,
+          plan: user.billing_plan,
+          monthlyChargeNaira: Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA),
+          currency: user.billing_currency || 'NGN',
+          paymentProvider: user.payment_provider || 'paystack',
+          trialEndsAt: user.trial_ends_at,
+          nextBillingDue: user.next_billing_due,
+          firstInvoiceGeneratedAt: user.first_invoice_generated_at
+        }
+      }
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -365,8 +384,35 @@ app.post('/auth/login', loginLimiter, [
 });
 
 // Verify Token
-app.get('/auth/verify', verifyToken, (req, res) => {
-  res.json({ valid: true, user: req.user });
+app.get('/auth/verify', verifyToken, async (req, res) => {
+  try {
+    const user = await db.getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ valid: false, error: 'User not found' });
+    }
+
+    res.json({
+      valid: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        billing: {
+          status: user.billing_status,
+          plan: user.billing_plan,
+          monthlyChargeNaira: Number(user.monthly_charge || MONTHLY_CHARGE_NAIRA),
+          currency: user.billing_currency || 'NGN',
+          paymentProvider: user.payment_provider || 'paystack',
+          trialEndsAt: user.trial_ends_at,
+          nextBillingDue: user.next_billing_due,
+          firstInvoiceGeneratedAt: user.first_invoice_generated_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Verify token error:', error);
+    res.status(500).json({ valid: false, error: 'Internal server error' });
+  }
 });
 
 app.post('/auth/logout', (req, res) => {
@@ -503,6 +549,17 @@ app.post('/invoice', verifyToken, [
     const userId = req.user.id;
     const userEmail = req.user.email;
 
+    const userRecord = await db.getUserById(userId);
+    if (!userRecord) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (userRecord.billing_status === 'pending_payment' || userRecord.billing_status === 'charge_due') {
+      return res.status(402).json({
+        error: 'Payment required to continue using Paynote. Complete your subscription to create new invoices.'
+      });
+    }
+
     const invoiceId = Date.now().toString();
     const newInvoice = await db.createInvoice(
       invoiceId,
@@ -514,7 +571,6 @@ app.post('/invoice', verifyToken, [
       amount
     );
 
-    const userRecord = await db.getUserById(userId);
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + BILLING_TRIAL_DAYS * 24 * 60 * 60 * 1000);
     const billingUpdates = {

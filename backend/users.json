@@ -4,6 +4,17 @@
     "email": "ceoafec@gmail.com",
     "name": "Afec",
     "passwordHash": "$2a$12$YyIW42p1p6WB9DBVKFt0BuaZ3UTPFx/cE.mPZXUVee6qw2BWPCffq",
-    "createdAt": "2026-05-05T03:57:04.766Z"
+    "createdAt": "2026-05-05T03:57:04.766Z",
+    "signup_ip": null,
+    "billing_status": "pending_payment",
+    "billing_plan": "monthly_subscription",
+    "monthly_charge": 3000,
+    "billing_currency": "NGN",
+    "payment_provider": "paystack",
+    "trial_ends_at": null,
+    "first_invoice_generated_at": null,
+    "billing_cycle_started_at": null,
+    "next_billing_due": null,
+    "updatedAt": "2026-05-30T11:35:35.566Z"
   }
 ]

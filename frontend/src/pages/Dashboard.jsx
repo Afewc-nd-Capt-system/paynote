@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getInvoices } from '../api.js'
+import { getInvoices, checkoutBilling } from '../api.js'
 import PageHeader from '../components/PageHeader'
 import {
   Chart as ChartJS,
@@ -30,6 +30,9 @@ function Dashboard({ user }) {
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [billingError, setBillingError] = useState('')
+  const [checkoutMessage, setCheckoutMessage] = useState('')
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -188,12 +191,157 @@ function Dashboard({ user }) {
 
   const recentInvoices = invoices.slice(-5).reverse()
 
+  const billing = user?.billing || {}
+  const billingStatus = billing.status || 'trial_pending'
+  const trialEndsAt = billing.trialEndsAt ? new Date(billing.trialEndsAt) : null
+  const nextBillingDue = billing.nextBillingDue ? new Date(billing.nextBillingDue) : null
+  const isTrialPending = billingStatus === 'trial_pending'
+  const isTrialActive = billingStatus === 'trial' && trialEndsAt && new Date() < trialEndsAt
+  const isPaymentDue = billingStatus === 'charge_due' || billingStatus === 'pending_payment'
+  const subscriptionActive = billingStatus === 'active'
+
+  const formatDate = (date) => {
+    if (!date) return 'N/A'
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  const billingMessage = isTrialPending
+    ? 'Create your first invoice to start your free 30-day trial.'
+    : isTrialActive
+      ? `Free trial active until ${formatDate(trialEndsAt)}. Upgrade now to avoid interruption.`
+      : isPaymentDue
+        ? 'Your trial has ended. Payment is required to continue using Paynote.'
+        : subscriptionActive
+          ? `Subscription active. Next billing due ${formatDate(nextBillingDue)}.`
+          : 'Review your billing status.'
+
+  const billingActionText = isPaymentDue
+    ? 'Pay Now'
+    : isTrialActive
+      ? 'Upgrade'
+      : isTrialPending
+        ? 'Start Subscription'
+        : null
+
+  const handleBillingCheckout = async () => {
+    setBillingError('')
+    setCheckoutMessage('')
+    setCheckoutLoading(true)
+
+    try {
+      const data = await checkoutBilling()
+      if (data.authorizationUrl) {
+        window.open(data.authorizationUrl, '_blank')
+        setCheckoutMessage('Opening payment link. Complete the checkout to activate your plan.')
+      } else {
+        setBillingError('Unable to open payment link. Please try again.')
+      }
+    } catch (err) {
+      setBillingError(err.message || 'Failed to initialize payment checkout')
+    } finally {
+      setCheckoutLoading(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
         title="Dashboard"
         subtitle="Overview of your business"
       />
+
+      <div style={{
+        background: isPaymentDue ? '#FFF1F0' : '#EFF6FF',
+        border: `1px solid ${isPaymentDue ? '#F8D7DA' : '#B6E0FE'}`,
+        color: isPaymentDue ? '#842029' : '#0F172A',
+        borderRadius: 20,
+        padding: '20px 24px',
+        marginBottom: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12
+      }}>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12
+        }}>
+          <div>
+            <p style={{
+              fontSize: 14,
+              fontWeight: 700,
+              margin: 0,
+              textTransform: 'uppercase',
+              letterSpacing: '0.8px'
+            }}>{billingStatus.replace('_', ' ').toUpperCase()}</p>
+            <p style={{
+              fontSize: 16,
+              margin: '8px 0 0',
+              lineHeight: 1.5
+            }}>{billingMessage}</p>
+          </div>
+          {billingActionText && (
+            <button
+              onClick={handleBillingCheckout}
+              disabled={checkoutLoading}
+              style={{
+                padding: '14px 22px',
+                borderRadius: 14,
+                background: isPaymentDue ? '#D92D20' : '#007AFF',
+                color: 'white',
+                border: 'none',
+                cursor: checkoutLoading ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                fontSize: 14,
+                minWidth: 160
+              }}
+            >
+              {checkoutLoading ? 'Preparing payment...' : billingActionText}
+            </button>
+          )}
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 12
+        }}>
+          <div style={{ fontSize: 13, color: '#475569' }}>
+            <strong>Plan:</strong> {billing.plan || 'Free Trial'}
+          </div>
+          <div style={{ fontSize: 13, color: '#475569' }}>
+            <strong>Monthly Price:</strong> {billing.monthlyChargeNaira ? `₦${billing.monthlyChargeNaira.toLocaleString()}` : '₦3,000'}
+          </div>
+          <div style={{ fontSize: 13, color: '#475569' }}>
+            <strong>Next due:</strong> {subscriptionActive ? formatDate(nextBillingDue) : trialEndsAt ? formatDate(trialEndsAt) : 'Not yet started'}
+          </div>
+        </div>
+        {billingError && (
+          <div style={{
+            background: '#FFE5E5',
+            color: '#842029',
+            padding: '12px 16px',
+            borderRadius: 12,
+            fontSize: 13,
+            border: '1px solid #F5C2C7'
+          }}>
+            {billingError}
+          </div>
+        )}
+        {checkoutMessage && (
+          <div style={{
+            background: '#F0F9FF',
+            color: '#0F172A',
+            padding: '12px 16px',
+            borderRadius: 12,
+            fontSize: 13,
+            border: '1px solid #B6E0FE'
+          }}>
+            {checkoutMessage}
+          </div>
+        )}
+      </div>
 
       {error && (
         <div style={{

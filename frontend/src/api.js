@@ -103,6 +103,12 @@ export const getInvoices = async () => {
   })
 }
 
+export const checkoutBilling = async () => {
+  return request('/billing/checkout', {
+    method: 'POST'
+  })
+}
+
 export const markInvoicePaid = async (id) => {
   return request('/mark-paid', {
     method: 'POST',
