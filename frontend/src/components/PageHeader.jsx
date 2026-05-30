@@ -11,7 +11,11 @@ function PageHeader({ title, subtitle, actionText, onAction }) {
       marginBottom: 24,
       width: '100%'
     }}>
-      <div style={{ minWidth: 0, width: 'min(100%, 680px)' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0, width: 'min(100%, 680px)' }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', background: 'transparent' }}>
+          <img src="/logo.png" alt="Paynote" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+        <div>
         <h1 style={{
           fontSize: 'clamp(1.65rem, 5.2vw, 2.1rem)',
           fontWeight: 700,
@@ -27,6 +31,7 @@ function PageHeader({ title, subtitle, actionText, onAction }) {
           maxWidth: 'min(100%, 560px)',
           lineHeight: 1.6
         }}>{subtitle}</p>
+        </div>
       </div>
 
       {actionText && onAction && (

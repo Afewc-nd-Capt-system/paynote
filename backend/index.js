@@ -47,7 +47,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || def
 const MAX_ACCOUNTS_PER_IP = 3
 const BILLING_TRIAL_DAYS = 30
 const MONTHLY_CHARGE_NAIRA = 3000
-const PAYSTACK_PAYMENT_LINK_URL = 'https://paystack.shop/pay/n0bt6i18lq'
+const PAYSTACK_PAYMENT_LINK_URL = 'https://paystack.shop/pay/34qumnk0dg'
 
 // Security Middleware
 app.use(helmet({

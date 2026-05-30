@@ -1,11 +1,16 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import LogoIcon from './icons/LogoIcon'
+import DashboardIcon from './icons/DashboardIcon'
+import CreateIcon from './icons/CreateIcon'
+import InvoicesIcon from './icons/InvoicesIcon'
+import SettingsIcon from './icons/SettingsIcon'
 
 const menuItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { path: '/create', label: 'Create Invoice', icon: '📝' },
-  { path: '/invoices', label: 'Invoices', icon: '📄' },
-  { path: '/settings', label: 'Settings', icon: '⚙️' },
+  { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
+  { path: '/create', label: 'Create Invoice', icon: <CreateIcon /> },
+  { path: '/invoices', label: 'Invoices', icon: <InvoicesIcon /> },
+  { path: '/settings', label: 'Settings', icon: <SettingsIcon /> },
 ]
 
 function Sidebar({ user, isOpen, onClose, onLogout }) {
@@ -64,27 +69,27 @@ function Sidebar({ user, isOpen, onClose, onLogout }) {
             gap: 12
           }}>
             <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+              width: 48,
+              height: 48,
+              borderRadius: 10,
+              overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 20
+              background: 'transparent'
             }}>
-              💰
+              <img src="/logo.png" alt="Paynote" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div>
               <h1 style={{
                 fontSize: 22,
                 fontWeight: 700,
-                color: '#1d1d1f',
+                color: 'var(--brand-foreground, #1d1d1f)',
                 letterSpacing: '-0.5px'
               }}>Paynote</h1>
               <p style={{
                 fontSize: 12,
-                color: '#86868b',
+                color: 'var(--apple-muted, #86868b)',
                 marginTop: 2
               }}>{typeof user === 'string' ? user : user?.name || user?.email}</p>
             </div>

@@ -14,6 +14,11 @@
   --apple-success: #16a34a;
   --apple-warning: #f59e0b;
   --apple-danger: #ef4444;
+  /* Brand tokens (derived from project logo) */
+  --brand-primary: #007AFF; /* primary blue */
+  --brand-secondary: #5856D6; /* purple gradient partner */
+  --brand-accent: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  --brand-foreground: #0f172a;
 }
 
 body {
