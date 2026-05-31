@@ -567,11 +567,38 @@ async function updateUserStatus(id, status) {
   }
 }
 
-module.exports = {
-  // ... existing exports
-  deleteUser,
-  updateUserStatus
-};
+// ==================== ADMIN CONTROL METHODS (MISSING) ====================
+
+async function deleteUser(id) {
+  if (useSupabase && supabase) {
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  } else {
+    let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+    users = users.filter(u => u.id !== id);
+    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+  }
+}
+
+async function updateUserStatus(id, status) {
+  if (useSupabase && supabase) {
+    const { error } = await supabase
+      .from('users')
+      .update({ billing_status: status })
+      .eq('id', id);
+    if (error) throw error;
+  } else {
+    let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+    const index = users.findIndex(u => u.id === id);
+    if (index !== -1) {
+      users[index].billing_status = status;
+      fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+    }
+  }
+}
 
 module.exports = {
   supabase,
@@ -592,5 +619,7 @@ module.exports = {
   getLogsByAction,
   getInvoiceStats,
   getUserCount,
-  testConnection
+  deleteUser,
+  testConnection,
+  updateUserStatus
 };
