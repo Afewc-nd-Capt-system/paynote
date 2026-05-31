@@ -566,19 +566,25 @@ async function deleteUser(id) {
 }
 
 async function updateUserStatus(id, status) {
-  if (useSupabase && supabase) {
-    const { error } = await supabase
-      .from('users')
-      .update({ billing_status: status })
-      .eq('id', id);
-    if (error) throw error;
-  } else {
-    let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-    const index = users.findIndex(u => u.id === id);
-    if (index !== -1) {
-      users[index].billing_status = status;
-      fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('users')
+        .update({ billing_status: status })
+        .eq('id', id);
+      
+      if (error) throw error;
+    } else {
+      let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+      const index = users.findIndex(u => u.id === id);
+      if (index !== -1) {
+        users[index].billing_status = status;
+        fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+      }
     }
+  } catch (error) {
+    console.error('updateUserStatus error:', error);
+    throw error;
   }
 }
 
