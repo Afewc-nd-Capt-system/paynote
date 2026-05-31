@@ -535,17 +535,33 @@ async function testConnection() {
 // ==================== ADMIN CONTROL METHODS ====================
 
 async function deleteUser(id) {
-  if (useSupabase) {
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-  } else {
-    // JSON fallback
-    let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-    users = users.filter(u => u.id !== id);
-    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+  try {
+    // Check if Supabase is available
+    if (supabase) {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Supabase delete error:', error);
+        throw error;
+      }
+    } else {
+      // Local JSON fallback
+      let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+      const originalLength = users.length;
+      users = users.filter(u => u.id !== id);
+      
+      if (users.length === originalLength) {
+        throw new Error('User not found');
+      }
+      
+      fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+    }
+  } catch (error) {
+    console.error('deleteUser error:', error);
+    throw error;
   }
 }
 
