@@ -887,6 +887,61 @@ app.get('/admin/logs', verifyAdmin, async (req, res) => {
   }
 });
 
+// ==================== ABSOLUTE ADMIN CONTROL ====================
+
+// Delete User
+app.delete('/admin/user/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.deleteUser(id);
+    await logActivity('admin_deleted_user', { admin: req.user.email, userId: id });
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Update User Status (Mark as Paid, Suspend, etc.)
+app.put('/admin/user/:id/status', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    await db.updateUserStatus(id, status);
+    await logActivity('admin_updated_user_status', { admin: req.user.email, userId: id, status });
+    res.json({ message: 'User status updated successfully' });
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// Mark Invoice as Paid
+app.put('/admin/invoice/:id/mark-paid', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.updateInvoiceStatus(id, 'paid');
+    await logActivity('admin_marked_invoice_paid', { admin: req.user.email, invoiceId: id });
+    res.json({ message: 'Invoice marked as paid' });
+  } catch (error) {
+    console.error('Mark paid error:', error);
+    res.status(500).json({ error: 'Failed to update invoice' });
+  }
+});
+
+// Delete Invoice
+app.delete('/admin/invoice/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.deleteInvoice(id);
+    await logActivity('admin_deleted_invoice', { admin: req.user.email, invoiceId: id });
+    res.json({ message: 'Invoice deleted successfully' });
+  } catch (error) {
+    console.error('Delete invoice error:', error);
+    res.status(500).json({ error: 'Failed to delete invoice' });
+  }
+});
+
 // ============ Server ============
 
 const PORT = process.env.PORT || 5000;
