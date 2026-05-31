@@ -566,40 +566,6 @@ async function deleteUser(id) {
 }
 
 async function updateUserStatus(id, status) {
-  if (useSupabase) {
-    const { error } = await supabase
-      .from('users')
-      .update({ billing_status: status })
-      .eq('id', id);
-    if (error) throw error;
-  } else {
-    // JSON fallback
-    let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-    const userIndex = users.findIndex(u => u.id === id);
-    if (userIndex !== -1) {
-      users[userIndex].billing_status = status;
-      fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
-    }
-  }
-}
-
-// ==================== ADMIN CONTROL METHODS (MISSING) ====================
-
-async function deleteUser(id) {
-  if (useSupabase && supabase) {
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-  } else {
-    let users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-    users = users.filter(u => u.id !== id);
-    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
-  }
-}
-
-async function updateUserStatus(id, status) {
   if (useSupabase && supabase) {
     const { error } = await supabase
       .from('users')
