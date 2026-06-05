@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png', 'favicon.ico'],
+      includeAssets: ['icon-192.png', 'icon-512.jpg', 'favicon.ico'],
       manifest: {
         name: 'Paynote',
         short_name: 'Paynote',
@@ -22,15 +22,15 @@ export default defineConfig({
         categories: ['business', 'productivity'],
         icons: [
           {
-            src: '/icon-512.png',
+            src: '/icon-512',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/jpg',
             purpose: 'any maskable'
           },
           {
-            src: '/icon-512.png',
+            src: '/icon-512',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/jpg',
             purpose: 'any maskable'
           }
         ]
