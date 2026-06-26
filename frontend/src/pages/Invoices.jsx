@@ -71,7 +71,6 @@ function Invoices({ user }) {
     }
   }
 
-  // Filtered + Search
   const filteredInvoices = useMemo(() => {
     let result = invoices
 
@@ -92,10 +91,7 @@ function Invoices({ user }) {
 
   return (
     <div>
-      <PageHeader
-        title="Invoices"
-        subtitle="Manage all your invoices"
-      />
+      <PageHeader title="Invoices" subtitle="Manage all your invoices" />
 
       {error && (
         <div style={{
@@ -242,8 +238,9 @@ function Invoices({ user }) {
                 <div style={{ marginBottom: 16 }}>
                   {inv.items && inv.items.length > 0 ? (
                     inv.items.map((item, index) => {
-                      const qty = item.quantity || 1;
-                      const unitPrice = item.unitPrice || (item.total / qty);
+                      const qty = Number(item.quantity) || 1;
+                      const unitPrice = Number(item.unitPrice) || (Number(item.total) / qty) || 0;
+                      const lineTotal = Number(item.total) || (qty * unitPrice);
 
                       return (
                         <div key={index} style={{
@@ -256,7 +253,7 @@ function Invoices({ user }) {
                         }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 10, color: '#1d1d1f', marginBottom: 2 }}>
-                              {item.name}
+                              {item.name || 'Unnamed Item'}
                             </div>
                             <div style={{ fontSize: 10.5, color: '#86868b' }}>
                               Qty: {qty} × ₦{unitPrice.toFixed(2)}
@@ -269,7 +266,7 @@ function Invoices({ user }) {
                             whiteSpace: 'nowrap',
                             paddingLeft: 8
                           }}>
-                            ₦{item.total?.toFixed(2)}
+                            ₦{lineTotal.toFixed(2)}
                           </div>
                         </div>
                       );
@@ -277,11 +274,11 @@ function Invoices({ user }) {
                   ) : (
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                       <div>
-                        <div style={{ fontSize: 10 }}>{inv.item}</div>
+                        <div style={{ fontSize: 10 }}>{inv.item || 'Invoice'}</div>
                         <div style={{ fontSize: 10.5, color: '#86868b' }}>Qty: 1</div>
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>
-                        ₦{inv.amount?.toFixed(2)}
+                        ₦{Number(inv.amount || 0).toFixed(2)}
                       </div>
                     </div>
                   )}
@@ -297,7 +294,7 @@ function Invoices({ user }) {
                   borderTop: '2px solid #111'
                 }}>
                   <span>Total</span>
-                  <span>₦{(inv.grandTotal || inv.amount)?.toFixed(2)}</span>
+                  <span>₦{(inv.grandTotal || inv.amount || 0).toFixed(2)}</span>
                 </div>
               </div>
 
