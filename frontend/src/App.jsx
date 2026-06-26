@@ -37,40 +37,68 @@ function App() {
         setAdminUser(storedAdminSession.user)
       }
 
-      try {
-        const userResponse = await verifyToken()
-        if (isMounted && userResponse?.user) {
-          setUser(userResponse.user)
-        } else if (isMounted) {
-          setUser(null)
-          clearSession('user')
-        }
-      } catch (error) {
-        if (isMounted) {
-          setUser(null)
-          clearSession('user')
-        }
+      const hasUserToken = !!localStorage.getItem('paynote_token')
+      const hasAdminToken = !!localStorage.getItem('admin_token')
+
+      const verifyPromises = []
+
+      if (hasUserToken) {
+        verifyPromises.push(
+          (async () => {
+            try {
+              const userResponse = await verifyToken()
+              if (isMounted && userResponse?.user) {
+                setUser(userResponse.user)
+              } else if (isMounted) {
+                setUser(null)
+                clearSession('user')
+              }
+            } catch (error) {
+              if (isMounted) {
+                setUser(null)
+                clearSession('user')
+              }
+            }
+          })()
+        )
+      } else if (isMounted) {
+        setUser(null)
+        clearSession('user')
       }
 
-      try {
-        const adminResponse = await verifyAdminSession()
-        if (isMounted && adminResponse?.user) {
-          setAdminUser(adminResponse.user)
-          setAdminToken(null)
-        } else if (isMounted) {
-          setAdminUser(null)
-          setAdminToken(null)
-          clearSession('admin')
-        }
-      } catch (error) {
-        if (isMounted) {
-          setAdminUser(null)
-          setAdminToken(null)
-          clearSession('admin')
-        }
-      } finally {
-        if (isMounted) setLoading(false)
+      if (hasAdminToken) {
+        verifyPromises.push(
+          (async () => {
+            try {
+              const adminResponse = await verifyAdminSession()
+              if (isMounted && adminResponse?.user) {
+                setAdminUser(adminResponse.user)
+                setAdminToken(null)
+              } else if (isMounted) {
+                setAdminUser(null)
+                setAdminToken(null)
+                clearSession('admin')
+              }
+            } catch (error) {
+              if (isMounted) {
+                setAdminUser(null)
+                setAdminToken(null)
+                clearSession('admin')
+              }
+            }
+          })()
+        )
+      } else if (isMounted) {
+        setAdminUser(null)
+        setAdminToken(null)
+        clearSession('admin')
       }
+
+      if (verifyPromises.length > 0) {
+        await Promise.all(verifyPromises)
+      }
+
+      if (isMounted) setLoading(false)
     }
 
     restoreSession()
@@ -209,7 +237,7 @@ function App() {
     <div style={{
       display: 'flex',
       minHeight: '100vh',
-      background: 'radial-gradient(circle at top, rgba(14,165,233,0.12), transparent 24%), radial-gradient(circle at bottom right, rgba(124,58,237,0.13), transparent 28%), #f4f5f8'
+      background: 'radial-gradient(circle at top, rgba(14,165,233,0.12), transparent 24%), radial-gradient(circle at bottom right, rgba(124,58,237,0.13), transparent 28>), #f4f5f8'
     }}>
       {user && (
         <Sidebar
