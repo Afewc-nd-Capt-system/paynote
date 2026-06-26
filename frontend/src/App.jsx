@@ -26,82 +26,70 @@ function App() {
   useEffect(() => {
     let isMounted = true
 
-    const restoreSession = async () => {
-      const storedUserSession = restoreStoredSession('user')
-      if (storedUserSession?.user && isMounted) {
-        setUser(storedUserSession.user)
-      }
+    // 1. Instantly restore from localStorage (no network)
+    const storedUserSession = restoreStoredSession('user')
+    if (storedUserSession?.user && isMounted) {
+      setUser(storedUserSession.user)
+    }
 
-      const storedAdminSession = restoreStoredSession('admin')
-      if (storedAdminSession?.user && isMounted) {
-        setAdminUser(storedAdminSession.user)
-      }
+    const storedAdminSession = restoreStoredSession('admin')
+    if (storedAdminSession?.user && isMounted) {
+      setAdminUser(storedAdminSession.user)
+    }
 
-      const hasUserToken = !!localStorage.getItem('paynote_token')
-      const hasAdminToken = !!localStorage.getItem('admin_token')
+    // 2. Hide loading screen immediately (non-blocking)
+    if (isMounted) setLoading(false)
 
-      const verifyPromises = []
-
-      if (hasUserToken) {
-        verifyPromises.push(
-          (async () => {
-            try {
-              const userResponse = await verifyToken()
-              if (isMounted && userResponse?.user) {
-                setUser(userResponse.user)
-              } else if (isMounted) {
-                setUser(null)
-                clearSession('user')
-              }
-            } catch (error) {
-              if (isMounted) {
-                setUser(null)
-                clearSession('user')
-              }
-            }
-          })()
-        )
+    // 3. Verify session in background (don't block the UI)
+    const verifyInBackground = async () => {
+      // === User session verification ===
+      if (localStorage.getItem('paynote_token')) {
+        try {
+          const userResponse = await verifyToken()
+          if (isMounted && userResponse?.user) {
+            setUser(userResponse.user)
+          } else if (isMounted) {
+            setUser(null)
+            clearSession('user')
+          }
+        } catch {
+          if (isMounted) {
+            setUser(null)
+            clearSession('user')
+          }
+        }
       } else if (isMounted) {
         setUser(null)
         clearSession('user')
       }
 
-      if (hasAdminToken) {
-        verifyPromises.push(
-          (async () => {
-            try {
-              const adminResponse = await verifyAdminSession()
-              if (isMounted && adminResponse?.user) {
-                setAdminUser(adminResponse.user)
-                setAdminToken(null)
-              } else if (isMounted) {
-                setAdminUser(null)
-                setAdminToken(null)
-                clearSession('admin')
-              }
-            } catch (error) {
-              if (isMounted) {
-                setAdminUser(null)
-                setAdminToken(null)
-                clearSession('admin')
-              }
-            }
-          })()
-        )
+      // === Admin session verification ===
+      if (localStorage.getItem('admin_token')) {
+        try {
+          const adminResponse = await verifyAdminSession()
+          if (isMounted && adminResponse?.user) {
+            setAdminUser(adminResponse.user)
+            setAdminToken(null)
+          } else if (isMounted) {
+            setAdminUser(null)
+            setAdminToken(null)
+            clearSession('admin')
+          }
+        } catch {
+          if (isMounted) {
+            setAdminUser(null)
+            setAdminToken(null)
+            clearSession('admin')
+          }
+        }
       } else if (isMounted) {
         setAdminUser(null)
         setAdminToken(null)
         clearSession('admin')
       }
-
-      if (verifyPromises.length > 0) {
-        await Promise.all(verifyPromises)
-      }
-
-      if (isMounted) setLoading(false)
     }
 
-    restoreSession()
+    verifyInBackground()
 
     return () => {
       isMounted = false
@@ -237,7 +225,7 @@ function App() {
     <div style={{
       display: 'flex',
       minHeight: '100vh',
-      background: 'radial-gradient(circle at top, rgba(14,165,233,0.12), transparent 24%), radial-gradient(circle at bottom right, rgba(124,58,237,0.13), transparent 28>), #f4f5f8'
+      background: 'radial-gradient(circle at top, rgba(14,165,233,0.12), transparent 24()), radial-gradient(circle at bottom right, rgba(124,58,237,0.13), transparent 28%), #f4f5f8'
     }}>
       {user && (
         <Sidebar
