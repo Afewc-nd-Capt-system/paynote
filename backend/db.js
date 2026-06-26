@@ -381,25 +381,50 @@ async function getAllUsers() {
   return fallbackGetAllUsers();
 }
 
-async function createInvoice(id, userId, userEmail, customer, phone, item, amount) {
+// In backend/db.js
+
+async function createInvoice(userId, userEmail, customer, items = []) {
+  const id = `inv_${Date.now()}`;
+  const date = new Date().toISOString();
+  const status = 'unpaid';
+
+  // Calculate total from items
+  const totalAmount = items.reduce((sum, item) => {
+    const qty = parseFloat(item.quantity) || 1;
+    const price = parseFloat(item.unitPrice) || 0;
+    return sum + (qty * price);
+  }, 0);
+
+  const invoiceData = {
+    id,
+    user_id: userId,
+    user_email: userEmail,
+    customer,
+    items,                    // ← New: array of items
+    amount: totalAmount,      // ← Total calculated from items
+    status,
+    date
+  };
+
   if (supabase) {
-    const { data, error } = await supabase.from('invoices').insert([{
-      id,
-      user_id: userId,
-      user_email: userEmail,
-      customer,
-      phone,
-      item,
-      amount: parseFloat(amount),
-      status: 'unpaid',
-      date: new Date().toISOString()
-    }]).select().single();
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert([invoiceData])
+      .select()
+      .single();
 
     if (error) throw error;
     return data;
+  } else {
+    // JSON Fallback
+    const invoices = await fallbackGetAllInvoices();
+    invoices.push(invoiceData);
+    await fs.promises.writeFile(
+      path.join(__dirname, 'invoices.json'), 
+      JSON.stringify(invoices, null, 2)
+    );
+    return invoiceData;
   }
-
-  return fallbackCreateInvoice(id, userId, userEmail, customer, phone, item, amount);
 }
 
 async function getInvoicesByUserId(userId) {
