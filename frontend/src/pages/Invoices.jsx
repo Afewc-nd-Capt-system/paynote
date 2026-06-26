@@ -72,22 +72,35 @@ function Invoices({ user }) {
   }
 
   const filteredInvoices = useMemo(() => {
-    let result = invoices
+  let result = invoices
 
-    if (filter !== 'all') {
-      result = result.filter(inv => inv.status === filter)
-    }
+  // Status filter
+  if (filter !== 'all') {
+    result = result.filter(inv => inv.status === filter)
+  }
 
-    if (searchTerm.trim() !== '') {
-      const term = searchTerm.toLowerCase().trim()
-      result = result.filter(inv =>
-        (inv.customer && inv.customer.toLowerCase().includes(term)) ||
-        (inv.item && inv.item.toLowerCase().includes(term))
+  // Search filter (supports both old + new multi-item invoices)
+  if (searchTerm.trim() !== '') {
+    const term = searchTerm.toLowerCase().trim()
+
+    result = result.filter(inv => {
+      // Search in customer name
+      const customerMatch = inv.customer && inv.customer.toLowerCase().includes(term)
+
+      // Search in old single item
+      const oldItemMatch = inv.item && inv.item.toLowerCase().includes(term)
+
+      // Search in new multiple items array
+      const multiItemMatch = inv.items && inv.items.some(item =>
+        item.name && item.name.toLowerCase().includes(term)
       )
-    }
 
-    return result
-  }, [invoices, filter, searchTerm])
+      return customerMatch || oldItemMatch || multiItemMatch
+    })
+  }
+
+  return result
+}, [invoices, filter, searchTerm])
 
   return (
     <div>
