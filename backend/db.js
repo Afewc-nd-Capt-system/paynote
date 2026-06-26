@@ -384,46 +384,56 @@ async function getAllUsers() {
 // In backend/db.js
 
 async function createInvoice(userId, userEmail, customer, items = []) {
-  const id = `inv_${Date.now()}`;
-  const date = new Date().toISOString();
-  const status = 'unpaid';
+  try {
+    const id = `inv_${Date.now()}`;
+    const date = new Date().toISOString();
+    const status = 'unpaid';
 
-  // Calculate total from items
-  const totalAmount = items.reduce((sum, item) => {
-    const qty = parseFloat(item.quantity) || 1;
-    const price = parseFloat(item.unitPrice) || 0;
-    return sum + (qty * price);
-  }, 0);
+    // Safe calculation of total
+    const totalAmount = Array.isArray(items)
+      ? items.reduce((sum, item) => {
+          const qty = parseFloat(item?.quantity) || 1;
+          const price = parseFloat(item?.unitPrice) || 0;
+          return sum + (qty * price);
+        }, 0)
+      : 0;
 
-  const invoiceData = {
-    id,
-    user_id: userId,
-    user_email: userEmail,
-    customer,
-    items,                    // ← New: array of items
-    amount: totalAmount,      // ← Total calculated from items
-    status,
-    date
-  };
+    const invoiceData = {
+      id,
+      user_id: userId,
+      user_email: userEmail,
+      customer: customer || '',
+      items: Array.isArray(items) ? items : [],
+      amount: totalAmount,
+      status,
+      date
+    };
 
-  if (supabase) {
-    const { data, error } = await supabase
-      .from('invoices')
-      .insert([invoiceData])
-      .select()
-      .single();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('invoices')
+        .insert([invoiceData])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
-  } else {
-    // JSON Fallback
-    const invoices = await fallbackGetAllInvoices();
-    invoices.push(invoiceData);
-    await fs.promises.writeFile(
-      path.join(__dirname, 'invoices.json'), 
-      JSON.stringify(invoices, null, 2)
-    );
-    return invoiceData;
+      if (error) {
+        console.error('Supabase createInvoice error:', error);
+        throw error;
+      }
+      return data;
+    } else {
+      // JSON Fallback
+      const invoices = await fallbackGetAllInvoices();
+      invoices.push(invoiceData);
+      await fs.promises.writeFile(
+        path.join(__dirname, 'invoices.json'),
+        JSON.stringify(invoices, null, 2)
+      );
+      return invoiceData;
+    }
+  } catch (error) {
+    console.error('createInvoice failed:', error);
+    throw new Error('Failed to create invoice');
   }
 }
 
