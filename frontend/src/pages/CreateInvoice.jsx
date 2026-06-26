@@ -260,7 +260,7 @@ function CreateInvoice({ user }) {
               boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
               marginBottom: 16
             }}>
-              {/* Professional Receipt Preview */}
+              {/* Header */}
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <div style={{ fontSize: 11, color: '#888' }}>INVOICE</div>
                 <h2 style={{ margin: '6px 0' }}>{settings.businessName || 'My Business'}</h2>
@@ -273,8 +273,9 @@ function CreateInvoice({ user }) {
               {/* Items Preview */}
               <div style={{ marginBottom: 16 }}>
                 {createdInvoice.items?.map((item, index) => {
-                  const qty = item.quantity || 1;
-                  const unitPrice = item.unitPrice || (item.total / qty);
+                  const qty = Number(item.quantity) || 1;
+                  const unitPrice = Number(item.unitPrice) || (Number(item.total) / qty) || 0;
+                  const lineTotal = Number(item.total) || (qty * unitPrice);
 
                   return (
                     <div key={index} style={{
@@ -287,7 +288,7 @@ function CreateInvoice({ user }) {
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 10, color: '#1d1d1f', marginBottom: 2 }}>
-                          {item.name}
+                          {item.name || 'Unnamed Item'}
                         </div>
                         <div style={{ fontSize: 10.5, color: '#86868b' }}>
                           Qty: {qty} × ₦{unitPrice.toFixed(2)}
@@ -299,7 +300,7 @@ function CreateInvoice({ user }) {
                         color: '#1d1d1f',
                         whiteSpace: 'nowrap'
                       }}>
-                        ₦{item.total?.toFixed(2)}
+                        ₦{lineTotal.toFixed(2)}
                       </div>
                     </div>
                   );
