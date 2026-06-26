@@ -36,7 +36,7 @@ function CreateInvoice({ user }) {
     ))
   }
 
-  // Calculate totals
+  // Calculate line totals
   const lineItems = items.map(item => {
     const qty = parseFloat(item.quantity) || 0
     const price = parseFloat(item.unitPrice) || 0
@@ -91,7 +91,10 @@ function CreateInvoice({ user }) {
 
   return (
     <div style={{ padding: '20px', maxWidth: 860, margin: '0 auto' }}>
-      <PageHeader title="Create Invoice" subtitle="Create professional invoices with multiple items" />
+      <PageHeader
+        title="Create Invoice"
+        subtitle="Create professional invoices with multiple items"
+      />
 
       <div style={{ display: 'grid', gap: 28, marginTop: 12 }}>
         {/* Form Section */}
@@ -250,43 +253,67 @@ function CreateInvoice({ user }) {
           <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div id="created-invoice-preview" style={{
               width: '100%',
-              maxWidth: 360,
+              maxWidth: 380,
               background: 'white',
               borderRadius: 18,
               padding: '24px 20px',
               boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
               marginBottom: 16
             }}>
+              {/* Professional Receipt Preview */}
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <div style={{ fontSize: 11, color: '#888' }}>INVOICE</div>
-                <h3 style={{ margin: '6px 0' }}>{settings.businessName || 'My Business'}</h3>
+                <h2 style={{ margin: '6px 0' }}>{settings.businessName || 'My Business'}</h2>
               </div>
 
               <div style={{ marginBottom: 16 }}>
                 <strong>Bill To:</strong> {createdInvoice.customer || customer}
               </div>
 
+              {/* Items Preview */}
               <div style={{ marginBottom: 16 }}>
-                {createdInvoice.items?.map((item, index) => (
-                  <div key={index} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    fontSize: 14, 
-                    marginBottom: 6 
-                  }}>
-                    <div>{item.quantity} × {item.name}</div>
-                    <div>₦{item.total?.toFixed(2)}</div>
-                  </div>
-                ))}
+                {createdInvoice.items?.map((item, index) => {
+                  const qty = item.quantity || 1;
+                  const unitPrice = item.unitPrice || (item.total / qty);
+
+                  return (
+                    <div key={index} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      padding: '8px 0',
+                      borderBottom: index !== createdInvoice.items.length - 1 ? '1px solid #f0f0f0' : 'none',
+                      gap: 12
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 10, color: '#1d1d1f', marginBottom: 2 }}>
+                          {item.name}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: '#86868b' }}>
+                          Qty: {qty} × ₦{unitPrice.toFixed(2)}
+                        </div>
+                      </div>
+                      <div style={{ 
+                        fontWeight: 700, 
+                        fontSize: 14,
+                        color: '#1d1d1f',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        ₦{item.total?.toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
+              {/* Grand Total */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: 700,
-                borderTop: '2px solid #111',
-                paddingTop: 10
+                paddingTop: 12,
+                borderTop: '2px solid #111'
               }}>
                 <span>Total</span>
                 <span>₦{createdInvoice.grandTotal?.toFixed(2) || grandTotal.toFixed(2)}</span>
