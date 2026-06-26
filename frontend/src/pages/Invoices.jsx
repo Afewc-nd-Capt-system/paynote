@@ -51,48 +51,35 @@ function Invoices({ user }) {
     }
   }
 
-  const dataURLToBlob = (dataUrl) => {
-    const [header, base64] = dataUrl.split(',')
-    const mime = header.match(/:(.*?);/)[1]
-    const binary = atob(base64)
-    const array = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i += 1) {
-      array[i] = binary.charCodeAt(i)
-    }
-    return new Blob([array], { type: mime })
-  }
-
-  const getInvoiceNode = (id) => document.getElementById(`invoice-card-image-${id}`)
-
+  // Download only the receipt (without buttons)
   const downloadInvoiceImage = async (id) => {
-    const node = getInvoiceNode(id)
+    const node = document.getElementById(`receipt-${id}`)
     if (!node) {
-      alert('Unable to locate the invoice card.')
+      alert('Unable to locate the receipt.')
       return
     }
     try {
-      const dataUrl = await htmlToImage.toPng(node, { backgroundColor: '#ffffff', pixelRatio: 1.5 })
+      const dataUrl = await htmlToImage.toPng(node, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2
+      })
       const link = document.createElement('a')
       link.href = dataUrl
-      link.download = `invoice-${id}.png`
+      link.download = `receipt-${id}.png`
       link.click()
     } catch (err) {
-      setError('Unable to generate invoice image.')
+      setError('Failed to generate receipt image.')
     }
   }
 
-  // ========================
-  // IMPROVED FILTERING + SEARCH
-  // ========================
+  // Filtered + Search
   const filteredInvoices = useMemo(() => {
     let result = invoices
 
-    // Status filter
     if (filter !== 'all') {
       result = result.filter(inv => inv.status === filter)
     }
 
-    // Search filter
     if (searchTerm.trim() !== '') {
       const term = searchTerm.toLowerCase().trim()
       result = result.filter(inv =>
@@ -125,9 +112,8 @@ function Invoices({ user }) {
         </div>
       )}
 
-      {/* Search + Filter Section */}
+      {/* Search + Filter */}
       <div style={{ marginBottom: 24 }}>
-        {/* Search Bar */}
         <div style={{ marginBottom: 12 }}>
           <input
             type="text"
@@ -146,7 +132,6 @@ function Invoices({ user }) {
           />
         </div>
 
-        {/* Filter Tabs */}
         <div style={{
           display: 'flex',
           gap: 8,
@@ -172,8 +157,7 @@ function Invoices({ user }) {
                 fontSize: 14,
                 fontWeight: 600,
                 border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                cursor: 'pointer'
               }}
             >
               {tab.label}
@@ -193,119 +177,153 @@ function Invoices({ user }) {
           boxShadow: '0 2px 16px rgba(0,0,0,0.04)'
         }}>
           <p style={{ fontSize: 48, marginBottom: 16 }}>📭</p>
-          <p style={{ color: '#86868b', fontSize: 16, fontWeight: 500 }}>
-            {searchTerm 
-              ? 'No invoices match your search' 
-              : filter === 'all' 
-                ? 'No invoices yet' 
-                : `No ${filter} invoices`}
+          <p style={{ color: '#86868b', fontSize: 16 }}>
+            {searchTerm ? 'No matching invoices' : 'No invoices found'}
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {filteredInvoices.map(inv => (
-            <div
-              key={inv.id}
-              style={{
-                borderRadius: 28,
-                padding: '10px',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                overflow: 'hidden'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 20px 40px rgba(0,0,0,0.12)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
+            <div key={inv.id} style={{ maxWidth: 420, margin: '0 auto' }}>
+              {/* Professional Receipt Style */}
               <div
-                id={`invoice-card-image-${inv.id}`}
+                id={`receipt-${inv.id}`}
                 style={{
-                  width: '100%',
-                  maxWidth: 360,
-                  margin: '0 auto',
                   background: 'white',
-                  borderRadius: 28,
-                  padding: '18px',
-                  boxShadow: '0 14px 36px rgba(0,0,0,0.08)',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 14
+                  borderRadius: 16,
+                  padding: '28px 24px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+                  border: '1px solid #eee',
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
                 }}
               >
-                {/* Invoice Card Content (kept from original) */}
+                {/* Header */}
+                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, color: '#888', letterSpacing: '1px' }}>RECEIPT</div>
+                  <h2 style={{ margin: '8px 0 4px', fontSize: 22, fontWeight: 700 }}>
+                    {settings.businessName || 'My Business'}
+                  </h2>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
+                    {settings.ownerName || ''}
+                  </p>
+                </div>
+
+                {/* Date & Invoice Info */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  fontSize: 13, 
+                  color: '#555',
+                  marginBottom: 20,
+                  paddingBottom: 12,
+                  borderBottom: '1px dashed #ddd'
+                }}>
+                  <div>
+                    <strong>Date:</strong><br />
+                    {inv.date ? new Date(inv.date).toLocaleDateString() : 'N/A'}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <strong>Status:</strong><br />
+                    <span style={{
+                      color: inv.status === 'paid' ? '#16a34a' : '#dc2626',
+                      fontWeight: 600
+                    }}>
+                      {inv.status?.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Bill To */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>BILL TO</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{inv.customer}</div>
+                </div>
+
+                {/* Item Details */}
+                <div style={{
+                  background: '#f9f9f9',
+                  borderRadius: 12,
+                  padding: '16px 18px',
+                  marginBottom: 20
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{inv.item}</div>
+                      <div style={{ fontSize: 13, color: '#666' }}>
+                        Qty: {inv.quantity || 1} × ₦{(inv.amount / (inv.quantity || 1)).toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 16, textAlign: 'right' }}>
+                      ₦{inv.amount?.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total */}
                 <div style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  marginBottom: 14
+                  justifyContent: 'space-between',
+                  fontSize: 18,
+                  fontWeight: 700,
+                  paddingTop: 12,
+                  borderTop: '2px solid #111'
                 }}>
-                  <div style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 18,
-                    background: '#f4f4f7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 24
-                  }}>
-                    {settings.logo ? (
-                      <img
-                        src={settings.logo}
-                        alt="Logo"
-                        style={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 12 }}
-                      />
-                    ) : (
-                      '🏢'
-                    )}
-                  </div>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 10, letterSpacing: '0.24px', color: '#9b9b9f', textTransform: 'uppercase' }}>Invoice</p>
-                    <h2 style={{ margin: '8px 0 0', fontSize: 18, fontWeight: 800, color: '#1d1d1f' }}>{settings.businessName || 'My Business'}</h2>
-                  </div>
+                  <span>Total</span>
+                  <span>₦{inv.amount?.toFixed(2)}</span>
                 </div>
+              </div>
 
-                {/* Invoice Details */}
-                <div style={{ textAlign: 'left', padding: '0 8px' }}>
-                  <p style={{ margin: '4px 0', fontSize: 14 }}><strong>Bill To:</strong> {inv.customer}</p>
-                  <p style={{ margin: '4px 0', fontSize: 14 }}><strong>Phone:</strong> {inv.phone || 'N/A'}</p>
-                  <p style={{ margin: '4px 0', fontSize: 14 }}><strong>Item:</strong> {inv.item}</p>
-                  <p style={{ margin: '8px 0', fontSize: 20, fontWeight: 700 }}>₦{inv.amount?.toFixed(2)}</p>
-                </div>
-
-                {/* Status + Actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-                  <span style={{
-                    padding: '4px 12px',
-                    borderRadius: 20,
-                    fontSize: 13,
+              {/* Action Buttons - Outside the receipt */}
+              <div style={{ 
+                display: 'flex', 
+                gap: 10, 
+                marginTop: 12, 
+                justifyContent: 'center' 
+              }}>
+                {inv.status !== 'paid' && (
+                  <button 
+                    onClick={() => markAsPaid(inv.id)}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: 10,
+                      background: '#16a34a',
+                      color: 'white',
+                      border: 'none',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Mark as Paid
+                  </button>
+                )}
+                <button 
+                  onClick={() => downloadInvoiceImage(inv.id)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    background: '#007AFF',
+                    color: 'white',
+                    border: 'none',
                     fontWeight: 600,
-                    background: inv.status === 'paid' ? '#34c75920' : '#ff3b3020',
-                    color: inv.status === 'paid' ? '#34c759' : '#ff3b30'
-                  }}>
-                    {inv.status}
-                  </span>
-
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {inv.status !== 'paid' && (
-                      <button onClick={() => markAsPaid(inv.id)} style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#34c759', color: 'white', cursor: 'pointer' }}>
-                        Mark Paid
-                      </button>
-                    )}
-                    <button onClick={() => downloadInvoiceImage(inv.id)} style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#007AFF', color: 'white', cursor: 'pointer' }}>
-                      Download
-                    </button>
-                    <button onClick={() => deleteInvoiceHandler(inv.id)} style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ff3b30', color: 'white', cursor: 'pointer' }}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
+                    cursor: 'pointer'
+                  }}
+                >
+                  Download Receipt
+                </button>
+                <button 
+                  onClick={() => deleteInvoiceHandler(inv.id)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    background: '#ff3b30',
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
