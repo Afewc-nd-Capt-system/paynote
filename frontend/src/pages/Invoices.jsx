@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { getInvoices, markInvoicePaid, deleteInvoice } from '../api.js'
 import PageHeader from '../components/PageHeader'
 import * as htmlToImage from 'html-to-image'
@@ -7,6 +7,7 @@ function Invoices({ user }) {
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
   const settings = JSON.parse(localStorage.getItem('paynote_settings') || '{}')
 
@@ -80,11 +81,28 @@ function Invoices({ user }) {
     }
   }
 
-  
+  // ========================
+  // IMPROVED FILTERING + SEARCH
+  // ========================
+  const filteredInvoices = useMemo(() => {
+    let result = invoices
 
-  const filteredInvoices = filter === 'all'
-    ? invoices
-    : invoices.filter(inv => inv.status === filter)
+    // Status filter
+    if (filter !== 'all') {
+      result = result.filter(inv => inv.status === filter)
+    }
+
+    // Search filter
+    if (searchTerm.trim() !== '') {
+      const term = searchTerm.toLowerCase().trim()
+      result = result.filter(inv =>
+        (inv.customer && inv.customer.toLowerCase().includes(term)) ||
+        (inv.item && inv.item.toLowerCase().includes(term))
+      )
+    }
+
+    return result
+  }, [invoices, filter, searchTerm])
 
   return (
     <div>
@@ -107,40 +125,61 @@ function Invoices({ user }) {
         </div>
       )}
 
-      {/* Filter Tabs */}
-      <div style={{
-        display: 'flex',
-        gap: 8,
-        marginBottom: 24,
-        background: 'white',
-        padding: 6,
-        borderRadius: 14,
-        boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
-        width: 'fit-content'
-      }}>
-        {[
-          { key: 'all', label: 'All' },
-          { key: 'unpaid', label: 'Unpaid' },
-          { key: 'paid', label: 'Paid' }
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
+      {/* Search + Filter Section */}
+      <div style={{ marginBottom: 24 }}>
+        {/* Search Bar */}
+        <div style={{ marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="Search by customer or item..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             style={{
-              padding: '10px 20px',
-              borderRadius: 10,
-              background: filter === tab.key ? '#1d1d1f' : 'transparent',
-              color: filter === tab.key ? 'white' : '#86868b',
-              fontSize: 14,
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              width: '100%',
+              maxWidth: '400px',
+              padding: '12px 16px',
+              borderRadius: 14,
+              border: '1px solid #ddd',
+              fontSize: 15,
+              outline: 'none'
             }}
-          >
-            {tab.label}
-          </button>
-        ))}
+          />
+        </div>
+
+        {/* Filter Tabs */}
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          background: 'white',
+          padding: 6,
+          borderRadius: 14,
+          boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
+          width: 'fit-content'
+        }}>
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'unpaid', label: 'Unpaid' },
+            { key: 'paid', label: 'Paid' }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              style={{
+                padding: '10px 20px',
+                borderRadius: 10,
+                background: filter === tab.key ? '#1d1d1f' : 'transparent',
+                color: filter === tab.key ? 'white' : '#86868b',
+                fontSize: 14,
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -155,7 +194,11 @@ function Invoices({ user }) {
         }}>
           <p style={{ fontSize: 48, marginBottom: 16 }}>📭</p>
           <p style={{ color: '#86868b', fontSize: 16, fontWeight: 500 }}>
-            {filter === 'all' ? 'No invoices yet' : `No ${filter} invoices`}
+            {searchTerm 
+              ? 'No invoices match your search' 
+              : filter === 'all' 
+                ? 'No invoices yet' 
+                : `No ${filter} invoices`}
           </p>
         </div>
       ) : (
@@ -194,6 +237,7 @@ function Invoices({ user }) {
                   gap: 14
                 }}
               >
+                {/* Invoice Card Content (kept from original) */}
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -224,112 +268,44 @@ function Invoices({ user }) {
                   <div>
                     <p style={{ margin: 0, fontSize: 10, letterSpacing: '0.24px', color: '#9b9b9f', textTransform: 'uppercase' }}>Invoice</p>
                     <h2 style={{ margin: '8px 0 0', fontSize: 18, fontWeight: 800, color: '#1d1d1f' }}>{settings.businessName || 'My Business'}</h2>
-                    <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6e6e73' }}>{settings.ownerName || 'Business Owner'}</p>
                   </div>
+                </div>
+
+                {/* Invoice Details */}
+                <div style={{ textAlign: 'left', padding: '0 8px' }}>
+                  <p style={{ margin: '4px 0', fontSize: 14 }}><strong>Bill To:</strong> {inv.customer}</p>
+                  <p style={{ margin: '4px 0', fontSize: 14 }}><strong>Phone:</strong> {inv.phone || 'N/A'}</p>
+                  <p style={{ margin: '4px 0', fontSize: 14 }}><strong>Item:</strong> {inv.item}</p>
+                  <p style={{ margin: '8px 0', fontSize: 20, fontWeight: 700 }}>₦{inv.amount?.toFixed(2)}</p>
+                </div>
+
+                {/* Status + Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
                   <span style={{
-                    padding: '8px 12px',
-                    borderRadius: 14,
-                    fontSize: 11,
-                    fontWeight: 700,
+                    padding: '4px 12px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 600,
                     background: inv.status === 'paid' ? '#34c75920' : '#ff3b3020',
                     color: inv.status === 'paid' ? '#34c759' : '#ff3b30'
                   }}>
-                    {inv.status === 'paid' ? 'Paid' : 'Unpaid'}
+                    {inv.status}
                   </span>
-                </div>
 
-                <div style={{ width: '100%', display: 'grid', gap: 12, justifyItems: 'center' }}>
-                  <div style={{ width: '100%', display: 'grid', gap: 10 }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: 0, fontSize: 10, color: '#9b9b9f', letterSpacing: '0.24px', textTransform: 'uppercase' }}>From</p>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>{settings.businessName || 'My Business'}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6e6e73' }}>{settings.ownerName || 'Business Owner'}</p>
-                    </div>
-                    <div style={{ textAlign: 'center', fontSize: 10, color: '#ccc' }}>↓</div>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: 0, fontSize: 10, color: '#9b9b9f', letterSpacing: '0.24px', textTransform: 'uppercase' }}>Bill To</p>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>{inv.customer}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6e6e73' }}>{inv.phone}</p>
-                    </div>
-                  </div>
-
-                  <div style={{ width: '100%', padding: '14px 16px', borderRadius: 16, background: '#f8f8fa', display: 'grid', gap: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#9b9b9f', textTransform: 'uppercase', letterSpacing: '0.28px' }}>
-                      <span>Description</span>
-                      <span>Amount</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>{inv.item}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>₦{inv.amount.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ width: '100%', padding: '12px 16px', borderRadius: 16, background: '#f8f8fa', display: 'grid', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#9b9b9f', letterSpacing: '0.26px' }}>
-                      <span>Invoice #</span>
-                      <span>{inv.id}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#9b9b9f', letterSpacing: '0.26px' }}>
-                      <span>Date</span>
-                      <span>{new Date(inv.date).toLocaleDateString()}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#9b9b9f', letterSpacing: '0.26px' }}>
-                      <span>Status</span>
-                      <span style={{ fontWeight: 700, color: inv.status === 'paid' ? '#34c759' : '#ff3b30' }}>{inv.status.toUpperCase()}</span>
-                    </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {inv.status !== 'paid' && (
+                      <button onClick={() => markAsPaid(inv.id)} style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#34c759', color: 'white', cursor: 'pointer' }}>
+                        Mark Paid
+                      </button>
+                    )}
+                    <button onClick={() => downloadInvoiceImage(inv.id)} style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#007AFF', color: 'white', cursor: 'pointer' }}>
+                      Download
+                    </button>
+                    <button onClick={() => deleteInvoiceHandler(inv.id)} style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ff3b30', color: 'white', cursor: 'pointer' }}>
+                      Delete
+                    </button>
                   </div>
                 </div>
-
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ margin: 0, fontSize: 10, color: '#9b9b9f', textTransform: 'uppercase', letterSpacing: '0.28px' }}>Total</p>
-                    <p style={{ margin: '6px 0 0', fontSize: 22, fontWeight: 800, color: '#1d1d1f' }}>₦{inv.amount.toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 10 }}>
-                <button
-                  onClick={() => downloadInvoiceImage(inv.id)}
-                  style={{
-                    minWidth: 160,
-                    padding: '12px 16px',
-                    borderRadius: 14,
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    background: '#f5f5f7',
-                    color: '#1d1d1f',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'background 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = '#eeeef0'}
-                  onMouseLeave={(e) => e.target.style.background = '#f5f5f7'}
-                >
-                  🖼 Download Image
-                </button>
-
-                {inv.status === 'unpaid' && (
-                  <button
-                    onClick={() => markAsPaid(inv.id)}
-                    style={{
-                      minWidth: 120,
-                      padding: '12px 16px',
-                      borderRadius: 14,
-                      background: '#34c75915',
-                      color: '#34c759',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      border: 'none',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.target.style.background = '#34c75925'}
-                    onMouseLeave={(e) => e.target.style.background = '#34c75915'}
-                  >
-                    ✓ Mark Paid
-                  </button>
-                )}
               </div>
             </div>
           ))}
