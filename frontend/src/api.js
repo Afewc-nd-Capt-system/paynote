@@ -90,10 +90,10 @@ export const verifyToken = async () => {
 
 // ============ Invoice Functions ============
 
-export const createInvoice = async (customer, phone, item, amount) => {
+export const createInvoice = async (customer, items) => {
   return request('/invoice', {
     method: 'POST',
-    body: JSON.stringify({ customer, phone, item, amount })
+    body: JSON.stringify({ customer, items })
   })
 }
 
