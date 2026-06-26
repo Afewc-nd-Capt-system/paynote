@@ -4,36 +4,67 @@ import PageHeader from '../components/PageHeader'
 import * as htmlToImage from 'html-to-image'
 
 function CreateInvoice({ user }) {
-  const [form, setForm] = useState({
-    customer: '',
-    phone: '',
-    item: '',
-    amount: ''
-  })
+  const [customer, setCustomer] = useState('')
+  const [items, setItems] = useState([
+    { id: Date.now(), name: '', quantity: 1, unitPrice: '' }
+  ])
   const [createdInvoice, setCreatedInvoice] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const settings = JSON.parse(localStorage.getItem('paynote_settings') || '{}')
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-    setError('')
+  // Add new item row
+  const addItem = () => {
+    setItems([...items, { 
+      id: Date.now(), 
+      name: '', 
+      quantity: 1, 
+      unitPrice: '' 
+    }])
   }
+
+  // Remove item row
+  const removeItem = (id) => {
+    if (items.length === 1) return
+    setItems(items.filter(item => item.id !== id))
+  }
+
+  // Update item field
+  const updateItem = (id, field, value) => {
+    setItems(items.map(item =>
+      item.id === id ? { ...item, [field]: value } : item
+    ))
+  }
+
+  // Calculate line totals + grand total
+  const lineItems = items.map(item => {
+    const qty = parseFloat(item.quantity) || 0
+    const price = parseFloat(item.unitPrice) || 0
+    return { ...item, total: qty * price }
+  })
+
+  const grandTotal = lineItems.reduce((sum, item) => sum + item.total, 0)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
-    if (!form.customer || !form.phone || !form.item || !form.amount) {
-      setError('All fields are required')
+    if (!customer.trim()) {
+      setError('Customer name is required')
+      return
+    }
+
+    const hasEmptyItem = items.some(item => !item.name.trim() || !item.unitPrice)
+    if (hasEmptyItem) {
+      setError('Please fill all item details')
       return
     }
 
     setLoading(true)
     try {
-      const data = await createInvoice(form.customer, form.phone, form.item, form.amount)
-      setCreatedInvoice(data)
-      setForm({ customer: '', phone: '', item: '', amount: '' })
+      // This will work after we update api.js
+      const data = await createInvoice(customer, lineItems)
+      setCreatedInvoice({ ...data, items: lineItems, grandTotal })
     } catch (err) {
       setError(err.message || 'Failed to create invoice')
     } finally {
@@ -41,273 +72,240 @@ function CreateInvoice({ user }) {
     }
   }
 
-  const dataURLToBlob = (dataUrl) => {
-    const [header, base64] = dataUrl.split(',')
-    const mime = header.match(/:(.*?);/)[1]
-    const binary = atob(base64)
-    const array = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i += 1) {
-      array[i] = binary.charCodeAt(i)
-    }
-    return new Blob([array], { type: mime })
-  }
-
-  const downloadCreatedInvoiceImage = async () => {
+  const downloadInvoice = async () => {
     const node = document.getElementById('created-invoice-preview')
-    if (!node) {
-      alert('Unable to locate the invoice preview.')
-      return
-    }
+    if (!node) return
+
     try {
-      const dataUrl = await htmlToImage.toPng(node, { backgroundColor: '#ffffff', pixelRatio: 1.5 })
+      const dataUrl = await htmlToImage.toPng(node, { 
+        backgroundColor: '#ffffff', 
+        pixelRatio: 2 
+      })
       const link = document.createElement('a')
       link.href = dataUrl
-      link.download = `invoice-${createdInvoice.id}.png`
+      link.download = `invoice-${createdInvoice.id || Date.now()}.png`
       link.click()
-    } catch (err) {
-      setError('Unable to generate invoice image.')
+    } catch {
+      setError('Failed to download invoice')
     }
   }
 
-  const inputStyle = {
-    width: '100%',
-    padding: '16px 18px',
-    borderRadius: 14,
-    border: '1.5px solid #e5e5ea',
-    fontSize: 15,
-    outline: 'none',
-    background: '#fafafa',
-    transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
-  }
-
-  const userName = typeof user === 'string' ? user : user?.name || user?.email || 'Business Owner'
-
   return (
-    <div style={{ padding: '24px', maxWidth: 940, margin: '0 auto' }}>
+    <div style={{ padding: '24px', maxWidth: 860, margin: '0 auto' }}>
       <PageHeader
         title="Create Invoice"
-        subtitle="Generate a polished invoice image for your customer"
+        subtitle="Create professional invoices with multiple items"
       />
 
-      <div style={{
-        display: 'grid',
-        gap: 28,
-        marginTop: 16
-      }}>
+      <div style={{ display: 'grid', gap: 32, marginTop: 16 }}>
+        {/* Form Section */}
         <section style={{
           background: 'white',
-          borderRadius: 28,
-          boxShadow: '0 24px 80px rgba(0,0,0,0.08)',
-          padding: 28
+          borderRadius: 24,
+          padding: 28,
+          boxShadow: '0 10px 40px rgba(0,0,0,0.06)'
         }}>
           {error && (
             <div style={{
-              background: '#FFEDEB',
+              background: '#FFE5E5',
               color: '#C41E3A',
-              padding: '14px 18px',
-              borderRadius: 14,
-              fontSize: 14,
-              marginBottom: 20,
-              border: '1px solid #FFB3B3'
+              padding: '12px 16px',
+              borderRadius: 12,
+              marginBottom: 20
             }}>
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gap: 18 }}>
-              <label style={{ display: 'block' }}>
-                <span style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>Customer Name</span>
-                <input
-                  type="text"
-                  name="customer"
-                  placeholder="e.g. John Smith"
-                  value={form.customer}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                />
+            {/* Customer Name */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
+                Customer Name
               </label>
-
-              <label style={{ display: 'block' }}>
-                <span style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>Customer Phone</span>
-                <input
-                  type="tel"
-                  name="phone"
-                  placeholder="e.g. +2348012345678"
-                  value={form.phone}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                />
-              </label>
-
-              <label style={{ display: 'block' }}>
-                <span style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>Item / Service</span>
-                <input
-                  type="text"
-                  name="item"
-                  placeholder="e.g. Design & Development"
-                  value={form.item}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                />
-              </label>
-
-              <label style={{ display: 'block' }}>
-                <span style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>Amount (₦)</span>
-                <input
-                  type="number"
-                  name="amount"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                  value={form.amount}
-                  onChange={handleChange}
-                  required
-                  style={inputStyle}
-                />
-              </label>
-
-              <button
-                type="submit"
-                disabled={loading}
+              <input
+                type="text"
+                value={customer}
+                onChange={(e) => setCustomer(e.target.value)}
+                placeholder="Enter customer name"
                 style={{
                   width: '100%',
-                  padding: '16px 22px',
-                  borderRadius: 16,
-                  background: loading ? '#c7c7cc' : 'linear-gradient(135deg, #007AFF 0%, #5C5CFF 100%)',
-                  color: 'white',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 18px 40px rgba(0,122,255,0.22)'
+                  padding: '14px 16px',
+                  borderRadius: 14,
+                  border: '1.5px solid #e5e5ea',
+                  fontSize: 15
                 }}
-              >
-                {loading ? 'Creating...' : 'Generate Clean Invoice'}
-              </button>
+                required
+              />
             </div>
+
+            {/* Items Section */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginBottom: 12 
+              }}>
+                <label style={{ fontWeight: 600 }}>Items</label>
+                <button 
+                  type="button" 
+                  onClick={addItem}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    background: '#007AFF',
+                    color: 'white',
+                    border: 'none',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  + Add Item
+                </button>
+              </div>
+
+              {lineItems.map((item) => (
+                <div key={item.id} style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1.2fr 1fr auto',
+                  gap: 12,
+                  marginBottom: 12,
+                  alignItems: 'end'
+                }}>
+                  <input
+                    type="text"
+                    placeholder="Item name"
+                    value={item.name}
+                    onChange={(e) => updateItem(item.id, 'name', e.target.value)}
+                    style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e5e5ea' }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Qty"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
+                    style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e5e5ea' }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Unit Price"
+                    value={item.unitPrice}
+                    onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value)}
+                    style={{ padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e5e5ea' }}
+                  />
+                  <div style={{ fontWeight: 600, paddingBottom: '12px' }}>
+                    ₦{item.total?.toFixed(2) || '0.00'}
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => removeItem(item.id)}
+                    style={{ color: '#ff3b30', background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Grand Total */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 18,
+              fontWeight: 700,
+              marginBottom: 24,
+              paddingTop: 16,
+              borderTop: '2px solid #eee'
+            }}>
+              <span>Grand Total</span>
+              <span>₦{grandTotal.toFixed(2)}</span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: 16,
+                background: loading ? '#ccc' : 'linear-gradient(135deg, #007AFF, #5856D6)',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: 15,
+                border: 'none',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {loading ? 'Creating Invoice...' : 'Create Invoice'}
+            </button>
           </form>
         </section>
 
+        {/* Invoice Preview */}
         {createdInvoice && (
-          <section style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 18
-          }}>
-            <div style={{
+          <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div id="created-invoice-preview" style={{
               width: '100%',
-              maxWidth: 340,
-              padding: 0,
+              maxWidth: 380,
+              background: 'white',
               borderRadius: 20,
-              background: '#fff',
-              boxShadow: 'none'
+              padding: '28px 24px',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+              marginBottom: 20
             }}>
-              <div id="created-invoice-preview" style={{
-                background: 'white',
-                borderRadius: 20,
-                padding: '20px 18px',
-                width: '100%',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 16
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 14,
-                    background: '#f4f4f7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 24
+              <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                <div style={{ fontSize: 12, color: '#888' }}>INVOICE</div>
+                <h2 style={{ margin: '8px 0' }}>{settings.businessName || 'My Business'}</h2>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <strong>Bill To:</strong> {createdInvoice.customer || customer}
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                {createdInvoice.items?.map((item, index) => (
+                  <div key={index} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    marginBottom: 8,
+                    fontSize: 14 
                   }}>
-                    {settings.logo ? (
-                      <img src={settings.logo} alt="Logo" style={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 12 }} />
-                    ) : '🏢'}
+                    <div>{item.quantity} × {item.name}</div>
+                    <div>₦{item.total?.toFixed(2)}</div>
                   </div>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 10, letterSpacing: '0.24px', color: '#9b9b9f', textTransform: 'uppercase' }}>Invoice</p>
-                    <h1 style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 800, color: '#1d1d1f' }}>Paynote</h1>
-                  </div>
-                </div>
+                ))}
+              </div>
 
-                <div style={{ width: '100%', display: 'grid', gap: 14 }}>
-                  <div style={{ width: '100%', display: 'grid', gap: 8 }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: 0, fontSize: 10, color: '#9b9b9f', letterSpacing: '0.24px', textTransform: 'uppercase' }}>From</p>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>{settings.businessName || 'My Business'}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6e6e73' }}>{settings.ownerName || userName}</p>
-                    </div>
-                    <div style={{ textAlign: 'center', fontSize: 10, color: '#ccc' }}>↓</div>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: 0, fontSize: 10, color: '#9b9b9f', letterSpacing: '0.24px', textTransform: 'uppercase' }}>Bill To</p>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>{createdInvoice.customer}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6e6e73' }}>{createdInvoice.phone}</p>
-                    </div>
-                  </div>
-
-                  <div style={{ width: '100%', padding: '14px 16px', borderRadius: 16, background: '#f8f8fa', display: 'grid', gap: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#9b9b9f', textTransform: 'uppercase', letterSpacing: '0.28px' }}>
-                      <span>Description</span>
-                      <span>Amount</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>{createdInvoice.item}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f' }}>₦{Number(createdInvoice.amount).toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ width: '100%', padding: '12px 16px', borderRadius: 16, background: '#f8f8fa', display: 'grid', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#9b9b9f', letterSpacing: '0.26px' }}>
-                      <span>Invoice #</span>
-                      <span>{createdInvoice.id}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#9b9b9f', letterSpacing: '0.26px' }}>
-                      <span>Date</span>
-                      <span>{new Date(createdInvoice.date).toLocaleDateString()}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#9b9b9f', letterSpacing: '0.26px' }}>
-                      <span>Status</span>
-                      <span style={{ fontWeight: 700, color: createdInvoice.status === 'paid' ? '#34c759' : '#ff3b30' }}>{createdInvoice.status.toUpperCase()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'center', paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ margin: 0, fontSize: 10, color: '#9b9b9f', textTransform: 'uppercase', letterSpacing: '0.28px' }}>Total</p>
-                    <p style={{ margin: '6px 0 0', fontSize: 22, fontWeight: 800, color: '#1d1d1f' }}>₦{Number(createdInvoice.amount).toFixed(2)}</p>
-                  </div>
-                </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 18,
+                fontWeight: 700,
+                borderTop: '2px solid #111',
+                paddingTop: 12
+              }}>
+                <span>Total</span>
+                <span>₦{createdInvoice.grandTotal?.toFixed(2) || grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
-              <button
-                onClick={downloadCreatedInvoiceImage}
-                style={{
-                  minWidth: 160,
-                  padding: '12px 20px',
-                  borderRadius: 14,
-                  border: '1px solid rgba(0,0,0,0.08)',
-                  background: 'white',
-                  color: '#1d1d1f',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontSize: 14
-                }}
-              >
-                📥 Download PNG
-              </button>
-            </div>
+            <button
+              onClick={downloadInvoice}
+              style={{
+                padding: '14px 32px',
+                borderRadius: 14,
+                background: '#007AFF',
+                color: 'white',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: 15,
+                cursor: 'pointer'
+              }}
+            >
+              Download Invoice
+            </button>
           </section>
         )}
       </div>
