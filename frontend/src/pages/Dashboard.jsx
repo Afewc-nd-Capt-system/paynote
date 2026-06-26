@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getInvoices, checkoutBilling } from '../api.js'
 import PageHeader from '../components/PageHeader'
@@ -51,43 +51,46 @@ function Dashboard({ user }) {
     }
   }
 
-  const totalPaid = invoices
-    .filter(i => i.status === 'paid')
-    .reduce((sum, i) => sum + i.amount, 0)
+  // ========================
+  // OPTIMIZED WITH useMemo
+  // ========================
+  const { totalPaid, totalUnpaid, paidInvoicesCount, unpaidInvoicesCount, paymentRate, stats } = useMemo(() => {
+    const paid = invoices.filter(i => i.status === 'paid')
+    const unpaid = invoices.filter(i => i.status === 'unpaid')
 
-  const totalUnpaid = invoices
-    .filter(i => i.status === 'unpaid')
-    .reduce((sum, i) => sum + i.amount, 0)
+    const totalPaid = paid.reduce((sum, i) => sum + (i.amount || 0), 0)
+    const totalUnpaid = unpaid.reduce((sum, i) => sum + (i.amount || 0), 0)
+    const paidCount = paid.length
+    const unpaidCount = unpaid.length
+    const totalInvoices = invoices.length
+    const paymentRate = totalInvoices > 0 ? ((paidCount / totalInvoices) * 100).toFixed(1) : 0
 
-  const totalInvoices = invoices.length
-  const paidInvoices = invoices.filter(i => i.status === 'paid').length
-  const unpaidInvoices = invoices.filter(i => i.status === 'unpaid').length
-  const paymentRate = totalInvoices > 0 ? ((paidInvoices / totalInvoices) * 100).toFixed(1) : 0
+    const stats = [
+      { label: 'Total Revenue', value: `₦${totalPaid.toFixed(2)}`, color: '#34c759', icon: '💵' },
+      { label: 'Pending Amount', value: `₦${totalUnpaid.toFixed(2)}`, color: '#ff3b30', icon: '⏳' },
+      { label: 'Payment Rate', value: `${paymentRate}%`, color: '#007aff', icon: '📊' },
+      { label: 'Total Invoices', value: totalInvoices, color: '#ff9500', icon: '📄' },
+    ]
 
-  const stats = [
-    { label: 'Total Revenue', value: `₦${totalPaid.toFixed(2)}`, color: '#34c759', icon: '💵' },
-    { label: 'Pending Amount', value: `₦${totalUnpaid.toFixed(2)}`, color: '#ff3b30', icon: '⏳' },
-    { label: 'Payment Rate', value: `${paymentRate}%`, color: '#007aff', icon: '📊' },
-    { label: 'Total Invoices', value: totalInvoices, color: '#ff9500', icon: '📄' },
-  ]
+    return { totalPaid, totalUnpaid, paidInvoicesCount: paidCount, unpaidInvoicesCount: unpaidCount, paymentRate, stats }
+  }, [invoices])
 
-  // Analytics calculations
-  const getAnalyticsData = () => {
+  // Memoized Analytics
+  const analytics = useMemo(() => {
     const now = new Date()
 
-    // Last 30 days of daily profits
+    // Daily profits (last 30 days)
     const dailyProfits = Array.from({ length: 30 }, (_, i) => {
       const date = new Date(now)
       date.setDate(now.getDate() - (29 - i))
-
       const dayInvoices = invoices.filter(inv => {
         const invDate = new Date(inv.date)
         return invDate.toDateString() === date.toDateString() && inv.status === 'paid'
       })
-      return dayInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+      return dayInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0)
     })
 
-    // Weekly profits (last 4 weeks - proper week boundaries)
+    // Weekly profits (last 4 weeks)
     const weeklyProfits = Array.from({ length: 4 }, (_, i) => {
       const targetDate = new Date(now)
       targetDate.setDate(now.getDate() - (i * 7))
@@ -103,7 +106,7 @@ function Dashboard({ user }) {
         const invDate = new Date(inv.date)
         return invDate >= weekStart && invDate <= weekEnd && inv.status === 'paid'
       })
-      return weekInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+      return weekInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0)
     }).reverse()
 
     // Monthly profits (last 12 months)
@@ -115,16 +118,14 @@ function Dashboard({ user }) {
                invDate.getFullYear() === monthDate.getFullYear() &&
                inv.status === 'paid'
       })
-      return monthInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+      return monthInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0)
     }).reverse()
 
     return { dailyProfits, weeklyProfits, monthlyProfits }
-  }
+  }, [invoices])
 
-  const analytics = getAnalyticsData()
-
-  // Chart data
-  const salesChartData = {
+  // Memoized Chart Data
+  const salesChartData = useMemo(() => ({
     labels: Array.from({ length: 30 }, (_, i) => {
       const date = new Date()
       date.setDate(date.getDate() - (29 - i))
@@ -138,7 +139,7 @@ function Dashboard({ user }) {
       tension: 0.4,
       fill: true,
     }]
-  }
+  }), [analytics.dailyProfits])
 
   const salesChartOptions = {
     responsive: true,
@@ -158,14 +159,14 @@ function Dashboard({ user }) {
     }
   }
 
-  const paidUnpaidData = {
+  const paidUnpaidData = useMemo(() => ({
     labels: ['Paid', 'Unpaid'],
     datasets: [{
       data: [totalPaid, totalUnpaid],
       backgroundColor: ['#34c759', '#ff3b30'],
       borderWidth: 0,
     }]
-  }
+  }), [totalPaid, totalUnpaid])
 
   const paidUnpaidOptions = {
     responsive: true,
@@ -189,12 +190,16 @@ function Dashboard({ user }) {
     }
   }
 
-  const recentInvoices = invoices.slice(-5).reverse()
+  const recentInvoices = useMemo(() => {
+    return [...invoices].slice(-5).reverse()
+  }, [invoices])
 
+  // Billing logic (kept as is)
   const billing = user?.billing || {}
   const billingStatus = billing.status || 'trial_pending'
   const trialEndsAt = billing.trialEndsAt ? new Date(billing.trialEndsAt) : null
   const nextBillingDue = billing.nextBillingDue ? new Date(billing.nextBillingDue) : null
+
   const isTrialPending = billingStatus === 'trial_pending'
   const isTrialActive = billingStatus === 'trial' && trialEndsAt && new Date() < trialEndsAt
   const isPaymentDue = billingStatus === 'charge_due' || billingStatus === 'pending_payment'
@@ -227,7 +232,6 @@ function Dashboard({ user }) {
     setBillingError('')
     setCheckoutMessage('')
     setCheckoutLoading(true)
-
     try {
       const data = await checkoutBilling()
       if (data.authorizationUrl) {
@@ -250,6 +254,7 @@ function Dashboard({ user }) {
         subtitle="Overview of your business"
       />
 
+      {/* Billing Banner */}
       <div style={{
         background: isPaymentDue ? '#FFF1F0' : '#EFF6FF',
         border: `1px solid ${isPaymentDue ? '#F8D7DA' : '#B6E0FE'}`,
@@ -302,6 +307,7 @@ function Dashboard({ user }) {
             </button>
           )}
         </div>
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -317,6 +323,7 @@ function Dashboard({ user }) {
             <strong>Next due:</strong> {subscriptionActive ? formatDate(nextBillingDue) : trialEndsAt ? formatDate(trialEndsAt) : 'Not yet started'}
           </div>
         </div>
+
         {billingError && (
           <div style={{
             background: '#FFE5E5',
@@ -324,7 +331,7 @@ function Dashboard({ user }) {
             padding: '12px 16px',
             borderRadius: 12,
             fontSize: 13,
-            border: '1px solid #F5C2C7'
+            border: '1px solid '#F5C2C7'
           }}>
             {billingError}
           </div>
@@ -438,7 +445,7 @@ function Dashboard({ user }) {
           </div>
         </div>
 
-        {/* Profit Calendar */}
+        {/* Profit Overview */}
         <div style={{
           background: 'white',
           borderRadius: 18,
