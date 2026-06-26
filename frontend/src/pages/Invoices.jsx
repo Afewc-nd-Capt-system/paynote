@@ -51,7 +51,6 @@ function Invoices({ user }) {
     }
   }
 
-  // Download only the receipt (without buttons)
   const downloadInvoiceImage = async (id) => {
     const node = document.getElementById(`receipt-${id}`)
     if (!node) {
@@ -185,22 +184,22 @@ function Invoices({ user }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {filteredInvoices.map(inv => (
             <div key={inv.id} style={{ maxWidth: 420, margin: '0 auto' }}>
-              {/* Professional Receipt Style */}
-              <div
+              {/* Professional Receipt */}
+              <div 
                 id={`receipt-${inv.id}`}
                 style={{
                   background: 'white',
                   borderRadius: 16,
-                  padding: '28px 24px',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+                  padding: '24px 20px',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
                   border: '1px solid #eee',
                   fontFamily: 'system-ui, -apple-system, sans-serif'
                 }}
               >
                 {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, color: '#888', letterSpacing: '1px' }}>RECEIPT</div>
-                  <h2 style={{ margin: '8px 0 4px', fontSize: 22, fontWeight: 700 }}>
+                  <div style={{ fontSize: 11, color: '#888', letterSpacing: '1px' }}>RECEIPT</div>
+                  <h2 style={{ margin: '6px 0 2px', fontSize: 20, fontWeight: 700 }}>
                     {settings.businessName || 'My Business'}
                   </h2>
                   <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
@@ -208,14 +207,14 @@ function Invoices({ user }) {
                   </p>
                 </div>
 
-                {/* Date & Invoice Info */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  fontSize: 13, 
+                {/* Date & Status */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 13,
                   color: '#555',
-                  marginBottom: 20,
-                  paddingBottom: 12,
+                  marginBottom: 16,
+                  paddingBottom: 10,
                   borderBottom: '1px dashed #ddd'
                 }}>
                   <div>
@@ -234,32 +233,61 @@ function Invoices({ user }) {
                 </div>
 
                 {/* Bill To */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>BILL TO</div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>{inv.customer}</div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 3 }}>BILL TO</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{inv.customer}</div>
                 </div>
 
-                {/* Item Details */}
-                <div style={{
-                  background: '#f9f9f9',
-                  borderRadius: 12,
-                  padding: '16px 18px',
-                  marginBottom: 20
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{inv.item}</div>
-                      <div style={{ fontSize: 13, color: '#666' }}>
-                        Qty: {inv.quantity || 1} × ₦{(inv.amount / (inv.quantity || 1)).toFixed(2)}
+                {/* Items */}
+                <div style={{ marginBottom: 16 }}>
+                  {inv.items && inv.items.length > 0 ? (
+                    inv.items.map((item, index) => {
+                      const qty = item.quantity || 1;
+                      const unitPrice = item.unitPrice || (item.total / qty);
+
+                      return (
+                        <div key={index} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          padding: '8px 0',
+                          borderBottom: index !== inv.items.length - 1 ? '1px solid #f0f0f0' : 'none',
+                          gap: 12
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 10, color: '#1d1d1f', marginBottom: 2 }}>
+                              {item.name}
+                            </div>
+                            <div style={{ fontSize: 10.5, color: '#86868b' }}>
+                              Qty: {qty} × ₦{unitPrice.toFixed(2)}
+                            </div>
+                          </div>
+                          <div style={{ 
+                            fontWeight: 700, 
+                            fontSize: 14,
+                            color: '#1d1d1f',
+                            whiteSpace: 'nowrap',
+                            paddingLeft: 8
+                          }}>
+                            ₦{item.total?.toFixed(2)}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                      <div>
+                        <div style={{ fontSize: 10 }}>{inv.item}</div>
+                        <div style={{ fontSize: 10.5, color: '#86868b' }}>Qty: 1</div>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>
+                        ₦{inv.amount?.toFixed(2)}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 16, textAlign: 'right' }}>
-                      ₦{inv.amount?.toFixed(2)}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* Total */}
+                {/* Grand Total */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -269,11 +297,11 @@ function Invoices({ user }) {
                   borderTop: '2px solid #111'
                 }}>
                   <span>Total</span>
-                  <span>₦{inv.amount?.toFixed(2)}</span>
+                  <span>₦{(inv.grandTotal || inv.amount)?.toFixed(2)}</span>
                 </div>
               </div>
 
-              {/* Action Buttons - Outside the receipt */}
+              {/* Action Buttons */}
               <div style={{ 
                 display: 'flex', 
                 gap: 10, 
