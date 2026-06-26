@@ -535,9 +535,7 @@ app.post('/webhooks/paystack', async (req, res) => {
 // Create Invoice
 app.post('/invoice', verifyToken, [
   body('customer').trim().isLength({ min: 2, max: 100 }).customSanitizer(value => sanitizeString(value)),
-  body('phone').trim().matches(/^[0-9\-\+\s\(\)]+$/).isLength({ min: 5, max: 20 }).customSanitizer(value => sanitizeString(value)),
-  body('item').trim().isLength({ min: 1, max: 200 }).customSanitizer(value => sanitizeString(value)),
-  body('amount').isFloat({ min: 0.01 })
+  body('items').isArray({ min: 1 })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -545,7 +543,7 @@ app.post('/invoice', verifyToken, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { customer, phone, item, amount } = req.body;
+    const { customer, items } = req.body;
     const userId = req.user.id;
     const userEmail = req.user.email;
 
@@ -560,15 +558,11 @@ app.post('/invoice', verifyToken, [
       });
     }
 
-    const invoiceId = Date.now().toString();
     const newInvoice = await db.createInvoice(
-      invoiceId,
       userId,
       userEmail,
       customer,
-      phone,
-      item,
-      amount
+      items
     );
 
     const now = new Date();
