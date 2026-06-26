@@ -331,7 +331,7 @@ function Dashboard({ user }) {
             padding: '12px 16px',
             borderRadius: 12,
             fontSize: 13,
-            border: '1px solid '#F5C2C7'
+            border: '1px solid #F5C2C7'
           }}>
             {billingError}
           </div>
