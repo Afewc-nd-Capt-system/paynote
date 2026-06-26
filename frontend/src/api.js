@@ -1,67 +1,67 @@
-import { persistSession, clearSession } from './authSession'
+// frontend/src/api.js
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-const getStoredToken = (role = 'user') => {
-  const tokenKey = role === 'admin' ? 'admin_token' : 'paynote_token'
-  return localStorage.getItem(tokenKey)
-}
-
-const request = async (path, options = {}) => {
-  const method = (options.method || 'GET').toUpperCase()
-  const isAdminRoute = path.startsWith('/admin/')
-  const role = isAdminRoute ? 'admin' : 'user'
-  const authToken = getStoredToken(role)
+// ==================== REQUEST HELPER ====================
+async function request(endpoint, options = {}) {
+  const token = localStorage.getItem('paynote_token') || localStorage.getItem('admin_token')
 
   const headers = {
     'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers
   }
 
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`
-  }
-
-  const response = await fetch(`${API}${path}`, {
-    headers,
-    ...options
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers
   })
 
-  const contentType = response.headers.get('content-type') || ''
-  const data = contentType.includes('application/json') ? await response.json() : null
+  const data = await res.json()
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      clearSession(role)
-    }
-    throw new Error(data?.error || data?.message || 'Request failed')
-  }
-
-  if (data?.token && path === '/auth/login') {
-    persistSession('user', data.user, data.token)
-  }
-
-  if (data?.token && path === '/auth/signup') {
-    persistSession('user', data.user, data.token)
-  }
-
-  if (data?.token && path === '/admin/login') {
-    persistSession('admin', data.user, data.token)
-  }
-
-  if (path === '/auth/logout') {
-    clearSession('user')
-  }
-
-  if (path === '/admin/logout') {
-    clearSession('admin')
+  if (!res.ok) {
+    const error = new Error(data.error || data.message || 'Request failed')
+    error.status = res.status
+    throw error
   }
 
   return data
 }
 
-// ============ Auth Functions ============
+// ==================== SESSION HELPERS ====================
+export const persistSession = (role, data) => {
+  if (role === 'admin') {
+    localStorage.setItem('admin_token', data.token)
+    localStorage.setItem('admin_user', JSON.stringify(data.user))
+  } else {
+    localStorage.setItem('paynote_token', data.token)
+    localStorage.setItem('paynote_user', JSON.stringify(data.user))
+  }
+}
 
+export const clearSession = (role = 'user') => {
+  if (role === 'admin') {
+    localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_user')
+  } else {
+    localStorage.removeItem('paynote_token')
+    localStorage.removeItem('paynote_user')
+  }
+}
+
+export const restoreStoredSession = (role = 'user') => {
+  if (role === 'admin') {
+    const token = localStorage.getItem('admin_token')
+    const user = localStorage.getItem('admin_user')
+    return token && user ? { token, user: JSON.parse(user) } : null
+  } else {
+    const token = localStorage.getItem('paynote_token')
+    const user = localStorage.getItem('paynote_user')
+    return token && user ? { token, user: JSON.parse(user) } : null
+  }
+}
+
+// ==================== AUTH ====================
 export const signup = async (email, password, name) => {
   return request('/auth/signup', {
     method: 'POST',
@@ -77,19 +77,14 @@ export const login = async (email, password) => {
 }
 
 export const logout = async () => {
-  return request('/auth/logout', {
-    method: 'POST'
-  })
+  return request('/auth/logout', { method: 'POST' })
 }
 
 export const verifyToken = async () => {
-  return request('/auth/verify', {
-    method: 'GET'
-  })
+  return request('/auth/verify', { method: 'GET' })
 }
 
-// ============ Invoice Functions ============
-
+// ==================== INVOICES ====================
 export const createInvoice = async (customer, items) => {
   return request('/invoice', {
     method: 'POST',
@@ -98,15 +93,7 @@ export const createInvoice = async (customer, items) => {
 }
 
 export const getInvoices = async () => {
-  return request('/invoices', {
-    method: 'GET'
-  })
-}
-
-export const checkoutBilling = async () => {
-  return request('/billing/checkout', {
-    method: 'POST'
-  })
+  return request('/invoices', { method: 'GET' })
 }
 
 export const markInvoicePaid = async (id) => {
@@ -117,13 +104,14 @@ export const markInvoicePaid = async (id) => {
 }
 
 export const deleteInvoice = async (id) => {
-  return request(`/invoice/${id}`, {
-    method: 'DELETE'
-  })
+  return request(`/invoice/${id}`, { method: 'DELETE' })
 }
 
-// ============ Admin Functions ============
+export const checkoutBilling = async () => {
+  return request('/billing/checkout', { method: 'POST' })
+}
 
+// ==================== ADMIN ====================
 export const adminLogin = async (email, password) => {
   return request('/admin/login', {
     method: 'POST',
@@ -132,39 +120,25 @@ export const adminLogin = async (email, password) => {
 }
 
 export const adminLogout = async () => {
-  return request('/admin/logout', {
-    method: 'POST'
-  })
+  return request('/admin/logout', { method: 'POST' })
 }
 
 export const verifyAdminSession = async () => {
-  return request('/admin/verify', {
-    method: 'GET'
-  })
+  return request('/admin/verify', { method: 'GET' })
 }
 
 export const getAdminStats = async () => {
-  return request('/admin/stats', {
-    method: 'GET'
-  })
+  return request('/admin/stats', { method: 'GET' })
 }
 
 export const getAdminUsers = async () => {
-  return request('/admin/users', {
-    method: 'GET'
-  })
+  return request('/admin/users', { method: 'GET' })
 }
 
 export const getAdminInvoices = async () => {
-  return request('/admin/invoices', {
-    method: 'GET'
-  })
+  return request('/admin/invoices', { method: 'GET' })
 }
 
 export const getAdminLogs = async () => {
-  return request('/admin/logs', {
-    method: 'GET'
-  })
+  return request('/admin/logs', { method: 'GET' })
 }
-
-export default API
