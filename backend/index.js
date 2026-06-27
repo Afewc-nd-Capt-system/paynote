@@ -950,7 +950,118 @@ async function startServer() {
       console.error('📖 See SUPABASE_SETUP.md for configuration instructions.');
       process.exit(1);
     }
+// ==================== PASSWORD RESET ====================
 
+import crypto from 'crypto';
+import resend from './resend.js';
+
+// Forgot Password
+app.post('/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (error || !user) {
+      // Don't reveal if user exists or not (security)
+      return res.json({ message: 'If this email exists, a reset link has been sent' });
+    }
+
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save token in database
+    await supabase.from('password_reset_tokens').insert({
+      user_id: user.id,
+      token: token,
+      expires_at: expiresAt.toISOString(),
+      used: false
+    });
+
+    // Send email using Resend
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+
+    await resend.emails.send({
+      from: 'PayNote <onboarding@resend.dev>', // Change this later to your domain
+      to: user.email,
+      subject: 'Reset Your PayNote Password',
+      html: `
+        <p>Hello,</p>
+        <p>You requested to reset your password.</p>
+        <p>Click the link below to reset it:</p>
+        <a href="${resetLink}">${resetLink}</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    });
+
+    res.json({ message: 'If this email exists, a reset link has been sent' });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+// Reset Password
+app.post('/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // Find valid token
+    const { data: resetToken, error } = await supabase
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token', token)
+      .eq('used', false)
+      .gte('expires_at', new Date().toISOString())
+      .single();
+
+    if (error || !resetToken) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Hash new password (you should use bcrypt)
+    const bcrypt = await import('bcryptjs');
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password
+    await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('id', resetToken.user_id);
+
+    // Mark token as used
+    await supabase
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('id', resetToken.id);
+
+    res.json({ message: 'Password has been reset successfully' });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Paynote server running on port ${PORT}`);
       console.log(`📊 Database: Supabase (persistent storage enabled)`);
