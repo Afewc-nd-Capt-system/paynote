@@ -201,21 +201,35 @@ function Login({ onLogin }) {
           </button>
         </form>
 
-        <p style={{
-          textAlign: 'center',
-          color: '#86868b',
-          fontSize: 14,
-          marginTop: 24
-        }}>
-          Don't have an account?{' '}
-          <Link to="/signup" style={{
-            color: '#007AFF',
-            textDecoration: 'none',
-            fontWeight: 600
-          }}>
-            Sign Up
-          </Link>
-        </p>
+        {/* Forgot Password Link */}
+<p style={{ textAlign: 'right', marginTop: 8, marginBottom: 16 }}>
+  <Link 
+    to="/forgot-password" 
+    style={{ 
+      color: '#007AFF', 
+      textDecoration: 'none', 
+      fontSize: 14 
+    }}
+  >
+    Forgot Password?
+  </Link>
+</p>
+
+<p style={{
+  textAlign: 'center',
+  color: '#86868b',
+  fontSize: 14,
+  marginTop: 24
+}}>
+  Don't have an account?{' '}
+  <Link to="/signup" style={{
+    color: '#007AFF',
+    textDecoration: 'none',
+    fontWeight: 600
+  }}>
+    Sign Up
+  </Link>
+</p>
       </div>
     </div>
   )
