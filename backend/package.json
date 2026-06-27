@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "name": "paynote-backend",
   "version": "1.0.0",
   "description": "Paynote invoicing backend with secure authentication",
