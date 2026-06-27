@@ -25,78 +25,62 @@ function App() {
   const [isInstalled, setIsInstalled] = useState(false)
   const location = useLocation()
 
-  useEffect(() => {
-    let isMounted = true
+useEffect(() => {
+  let isMounted = true
 
-    // 1. Instantly restore from localStorage (no network)
-    const storedUserSession = restoreStoredSession('user')
-    if (storedUserSession?.user && isMounted) {
-      setUser(storedUserSession.user)
-    }
+  // 1. Instantly restore from localStorage (no network call)
+  const storedUserSession = restoreStoredSession('user')
+  if (storedUserSession?.user && isMounted) {
+    setUser(storedUserSession.user)
+  }
 
-    const storedAdminSession = restoreStoredSession('admin')
-    if (storedAdminSession?.user && isMounted) {
-      setAdminUser(storedAdminSession.user)
-    }
+  const storedAdminSession = restoreStoredSession('admin')
+  if (storedAdminSession?.user && isMounted) {
+    setAdminUser(storedAdminSession.user)
+  }
 
-    // 2. Hide loading screen immediately (non-blocking)
-    if (isMounted) setLoading(false)
+  // Hide loading immediately
+  if (isMounted) setLoading(false)
 
-    // 3. Verify session in background (don't block the UI)
-    const verifyInBackground = async () => {
-      // === User session verification ===
-      if (localStorage.getItem('paynote_token')) {
-        try {
-          const userResponse = await verifyToken()
-          if (isMounted && userResponse?.user) {
-            setUser(userResponse.user)
-          } else if (isMounted) {
-            setUser(null)
-            clearSession('user')
-          }
-        } catch {
-          if (isMounted) {
-            setUser(null)
-            clearSession('user')
-          }
+  // 2. Background verification (more tolerant)
+  const verifyInBackground = async () => {
+    // === User session ===
+    if (localStorage.getItem('paynote_token')) {
+      try {
+        const userResponse = await verifyToken()
+        if (isMounted && userResponse?.user) {
+          setUser(userResponse.user)
         }
-      } else if (isMounted) {
-        setUser(null)
-        clearSession('user')
-      }
-
-      // === Admin session verification ===
-      if (localStorage.getItem('admin_token')) {
-        try {
-          const adminResponse = await verifyAdminSession()
-          if (isMounted && adminResponse?.user) {
-            setAdminUser(adminResponse.user)
-            setAdminToken(null)
-          } else if (isMounted) {
-            setAdminUser(null)
-            setAdminToken(null)
-            clearSession('admin')
-          }
-        } catch {
-          if (isMounted) {
-            setAdminUser(null)
-            setAdminToken(null)
-            clearSession('admin')
-          }
-        }
-      } else if (isMounted) {
-        setAdminUser(null)
-        setAdminToken(null)
-        clearSession('admin')
+        // Note: We do NOT clear session on failure here anymore
+      } catch (error) {
+        // Only log error. Do not clear session on temporary failure
+        console.log('User session verification failed (non-critical)')
       }
     }
 
-    verifyInBackground()
-
-    return () => {
-      isMounted = false
+    // === Admin session ===
+    if (localStorage.getItem('admin_token')) {
+      try {
+        const adminResponse = await verifyAdminSession()
+        if (isMounted && adminResponse?.user) {
+          setAdminUser(adminResponse.user)
+          // Fixed: Do not set token to null on success
+        }
+      } catch (error) {
+        console.log('Admin session verification failed (non-critical)')
+      }
     }
-  }, [])
+  }
+
+  // Run verification in background without blocking UI
+  setTimeout(() => {
+    if (isMounted) verifyInBackground()
+  }, 300) // Small delay to let UI render first
+
+  return () => {
+    isMounted = false
+  }
+}, [])
 
   useEffect(() => {
     const handleInstallPrompt = (event) => {
