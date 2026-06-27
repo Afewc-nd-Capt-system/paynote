@@ -12,6 +12,8 @@ import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
 import { logout as logoutUser, verifyToken, verifyAdminSession, adminLogout } from './api'
 import { persistSession, restoreSession as restoreStoredSession, clearSession } from './authSession'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -301,6 +303,8 @@ function App() {
             user ? <Settings /> : <Navigate to="/login" replace />
           } />
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </main>
 
