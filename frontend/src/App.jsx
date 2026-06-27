@@ -171,7 +171,7 @@ function App() {
     setInstallPrompt(null)
   }
 
-  const isAuthPage = ['/login', '/signup', '/admin-login'].includes(location.pathname)
+  const isAuthPage = ['/login', '/signup', '/admin-login', '/forgot-password', '/reset-password'].includes(location.pathname)
 
   if (loading) {
     return (
